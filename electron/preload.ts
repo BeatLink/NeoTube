@@ -1,7 +1,12 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 
-// Expose safe APIs to the renderer process here via contextBridge.exposeInMainWorld().
-// Keep this minimal — the renderer uses PouchDB directly for all data access.
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
+})
+
+contextBridge.exposeInMainWorld('ytdlp', {
+  getInfo: (videoId: string) =>
+    ipcRenderer.invoke('ytdlp:info', videoId),
+  search: (query: string, limit?: number) =>
+    ipcRenderer.invoke('ytdlp:search', query, limit ?? 10),
 })

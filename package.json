@@ -16,7 +16,9 @@
   },
   "dependencies": {
     "@capacitor/core": "^8.4.1",
+    "events": "^3.3.0",
     "pouchdb": "^9.0.0",
+    "pouchdb-browser": "^9.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1"

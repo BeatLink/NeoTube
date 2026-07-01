@@ -1,10 +1,32 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import Home from '../pages/Home'
 import Subscriptions from '../pages/Subscriptions'
 import Settings from '../pages/Settings'
 import Watch from '../pages/Watch'
+
+vi.mock('../plugins/manager', () => ({
+  pluginManager: {
+    getActive: () => ({
+      getVideoInfo: vi.fn().mockResolvedValue({
+        videoId: 'abc123',
+        title: 'Test Video',
+        channelName: 'Test Channel',
+        description: '',
+        duration: 100,
+        thumbnail: '',
+        publishedAt: '',
+        streams: [],
+      }),
+    }),
+  },
+}))
+
+vi.mock('../db/index', () => ({
+  getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', defaultQuality: 'best', privacyMode: true }),
+  saveSettings: vi.fn().mockResolvedValue(undefined),
+}))
 
 describe('Home page', () => {
   it('renders welcome text', () => {
@@ -28,7 +50,7 @@ describe('Settings page', () => {
 })
 
 describe('Watch page', () => {
-  it('renders video id from route param', () => {
+  it('shows loading state initially', () => {
     render(
       <MemoryRouter initialEntries={['/watch/abc123']}>
         <Routes>
@@ -36,6 +58,6 @@ describe('Watch page', () => {
         </Routes>
       </MemoryRouter>
     )
-    expect(screen.getByText(/abc123/)).toBeInTheDocument()
+    expect(screen.getByText(/Loading/i)).toBeInTheDocument()
   })
 })

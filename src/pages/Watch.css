@@ -1,0 +1,56 @@
+.watch-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 960px;
+}
+
+.watch-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.watch-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.watch-channel {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+
+.watch-views {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.watch-description {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.watch-description summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.watch-description p {
+  margin-top: 8px;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+}
+
+.watch-status {
+  padding: 24px 0;
+  color: var(--text-muted);
+}
+
+.watch-error {
+  color: var(--accent);
+}

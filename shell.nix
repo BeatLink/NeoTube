@@ -13,6 +13,9 @@ pkgs.mkShell {
     # androidenv.androidPkgs.platform-tools
     # jdk17
 
+    # Video backend
+    yt-dlp
+
     # Tooling
     git
   ];
