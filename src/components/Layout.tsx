@@ -4,6 +4,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { parseVideoId } from '../utils/youtube'
 import { getSubscriptions, subscribe } from '../db/index'
 import { pluginManager } from '../plugins/manager'
+import { downloadAvatar } from '../utils/avatar'
 import type { Subscription } from '../types'
 
 export default function Layout() {
@@ -22,24 +23,26 @@ export default function Layout() {
     return () => window.removeEventListener('subscriptions-changed', loadSubs)
   }, [loadSubs])
 
-  // On startup, backfill avatars for any subscriptions that were saved without one.
-  // Runs sequentially so we don't fire N channel-info requests simultaneously.
+  // On startup, refresh avatars for all subscriptions.
+  // Runs sequentially with a delay between each request to avoid hammering the API.
+  // Only writes to DB when the fetched avatar differs from the stored one.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       const list = await getSubscriptions()
-      const missing = list.filter(s => !s.avatar)
-      if (!missing.length) return
+      if (!list.length) return
       let plugin
       try { plugin = pluginManager.getActive() } catch { return }
-      for (const sub of missing) {
+      for (let i = 0; i < list.length; i++) {
         if (cancelled) break
+        if (i > 0) await new Promise<void>(r => setTimeout(r, 800))
+        if (cancelled) break
+        const sub = list[i]
         try {
           const info = await plugin.getChannelInfo(sub.channelId)
           if (info.avatar && !cancelled) {
-            await subscribe(sub.channelId, sub.channelName, info.avatar)
-            // subscriptions-changed is dispatched by subscribe(), so the sidebar
-            // will re-render with the new avatar after each one is resolved.
+            const blob = await downloadAvatar(info.avatar)
+            if (blob && !cancelled) await subscribe(sub.channelId, sub.channelName, blob)
           }
         } catch { /* skip unreachable channels */ }
       }
@@ -65,6 +68,8 @@ export default function Layout() {
         <div className="sidebar-nav">
           <NavLink to="/">Home</NavLink>
           <NavLink to="/subscriptions">Subscriptions</NavLink>
+          <NavLink to="/channels">Channels</NavLink>
+          <NavLink to="/history">History</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </div>
 

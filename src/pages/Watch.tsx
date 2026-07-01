@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { pluginManager } from '../plugins/manager'
 import type { VideoInfo } from '../plugins/types'
-import { isSubscribed, subscribe, unsubscribe } from '../db/index'
+import { isSubscribed, subscribe, unsubscribe, recordWatch } from '../db/index'
+import { downloadAvatar } from '../utils/avatar'
 import VideoPlayer from '../components/VideoPlayer'
 import './Watch.css'
 
@@ -28,6 +29,8 @@ export default function Watch() {
         if (cancelled) return
         setState({ status: 'ready', info })
         isSubscribed(info.channelId).then(setSubscribed)
+        recordWatch(info.videoId, info.title, info.channelId, info.channelName, info.thumbnail, info.duration)
+          .catch(() => {})
       })
       .catch((err: Error) => {
         if (!cancelled) setState({ status: 'error', message: err.message })
@@ -45,10 +48,15 @@ export default function Watch() {
     } else {
       await subscribe(channelId, channelName)
       setSubscribed(true)
-      // Fetch avatar in background and update the stored subscription
+      // Fetch avatar in background, download to blob, then update stored subscription
       pluginManager.getActive()
         .getChannelInfo(channelId)
-        .then(info => { if (info.avatar) subscribe(channelId, channelName, info.avatar) })
+        .then(async info => {
+          if (info.avatar) {
+            const blob = await downloadAvatar(info.avatar)
+            if (blob) subscribe(channelId, channelName, blob)
+          }
+        })
         .catch(() => {})
     }
   }

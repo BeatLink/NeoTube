@@ -3,9 +3,15 @@ import { render, screen } from '@testing-library/react'
 import App from '../App'
 
 vi.mock('../db/index', () => ({
-  getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true }),
+  getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true, watchedVideoStyle: 'normal' }),
   saveSettings: vi.fn().mockResolvedValue(undefined),
   getSubscriptions: vi.fn().mockResolvedValue([]),
+  subscribe: vi.fn().mockResolvedValue(undefined),
+  recordWatch: vi.fn().mockResolvedValue(undefined),
+  getHistory: vi.fn().mockResolvedValue([]),
+  getWatchedVideoIds: vi.fn().mockResolvedValue(new Set()),
+  removeFromHistory: vi.fn().mockResolvedValue(undefined),
+  clearHistory: vi.fn().mockResolvedValue(undefined),
 }))
 
 describe('App', () => {

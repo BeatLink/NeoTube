@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { pluginManager } from '../plugins/manager'
 import type { ChannelInfo, SearchResult, ChannelPlaylist } from '../plugins/types'
-import { isSubscribed, subscribe, unsubscribe } from '../db/index'
+import { isSubscribed, subscribe, unsubscribe, getSettings, getWatchedVideoIds } from '../db/index'
+import { downloadAvatar } from '../utils/avatar'
 import './Channel.css'
 
 type Tab = 'videos' | 'playlists'
@@ -26,6 +27,28 @@ export default function Channel() {
   const [loadingPlaylists, setLoadingPlaylists] = useState(false)
   const [error, setError] = useState('')
   const [subscribed, setSubscribed] = useState(false)
+  const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
+  const [watchedStyle, setWatchedStyle] = useState<'normal' | 'dim' | 'hide'>('normal')
+
+  useEffect(() => {
+    Promise.all([getSettings(), getWatchedVideoIds()])
+      .then(([settings, ids]) => {
+        setWatchedStyle(settings.watchedVideoStyle ?? 'normal')
+        setWatchedIds(ids)
+      })
+      .catch(() => {})
+
+    const refresh = () => {
+      Promise.all([getSettings(), getWatchedVideoIds()])
+        .then(([settings, ids]) => {
+          setWatchedStyle(settings.watchedVideoStyle ?? 'normal')
+          setWatchedIds(ids)
+        })
+        .catch(() => {})
+    }
+    window.addEventListener('history-changed', refresh)
+    return () => window.removeEventListener('history-changed', refresh)
+  }, [])
 
   useEffect(() => {
     if (!channelId) return
@@ -48,7 +71,13 @@ export default function Channel() {
         setInfo(channelInfo)
         setVideos(channelVideos)
         setLoadingInfo(false)
-        isSubscribed(channelId).then(setSubscribed)
+        isSubscribed(channelId).then(async subbed => {
+          setSubscribed(subbed)
+          if (subbed && channelInfo.avatar) {
+            const blob = await downloadAvatar(channelInfo.avatar)
+            if (blob) subscribe(channelInfo.channelId, channelInfo.name, blob).catch(() => {})
+          }
+        })
       })
       .catch((err: Error) => {
         if (!cancelled) { setError(err.message); setLoadingInfo(false) }
@@ -135,30 +164,39 @@ export default function Channel() {
           ? <p className="channel-tab-status">Loading videos…</p>
           : videos.length === 0
             ? <p className="channel-tab-status">No videos found.</p>
-            : (
-              <ul className="channel-grid">
-                {videos.map(v => (
-                  <li key={v.videoId} className="channel-card">
-                    <Link to={`/watch/${v.videoId}`} className="channel-card-thumb-link">
-                      <div className="channel-card-thumb">
-                        {v.thumbnail
-                          ? <img src={v.thumbnail} alt="" loading="lazy" />
-                          : <div className="channel-card-thumb-blank" />
-                        }
-                        {v.duration > 0 && (
-                          <span className="channel-card-duration">
-                            {formatDuration(v.duration)}
-                          </span>
-                        )}
-                      </div>
-                    </Link>
-                    <Link to={`/watch/${v.videoId}`} className="channel-card-title">
-                      {v.title}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )
+            : (() => {
+                const visibleVideos = watchedStyle === 'hide'
+                  ? videos.filter(v => !watchedIds.has(v.videoId))
+                  : videos
+                return (
+                  <ul className="channel-grid">
+                    {visibleVideos.map(v => {
+                      const isWatched = watchedIds.has(v.videoId)
+                      const cardClass = `channel-card${isWatched && watchedStyle === 'dim' ? ' channel-card-watched-dim' : ''}`
+                      return (
+                        <li key={v.videoId} className={cardClass}>
+                          <Link to={`/watch/${v.videoId}`} className="channel-card-thumb-link">
+                            <div className="channel-card-thumb">
+                              {v.thumbnail
+                                ? <img src={v.thumbnail} alt="" loading="lazy" />
+                                : <div className="channel-card-thumb-blank" />
+                              }
+                              {v.duration > 0 && (
+                                <span className="channel-card-duration">
+                                  {formatDuration(v.duration)}
+                                </span>
+                              )}
+                            </div>
+                          </Link>
+                          <Link to={`/watch/${v.videoId}`} className="channel-card-title">
+                            {v.title}
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )
+              })()
       )}
 
       {/* ── Playlists tab ──────────────────────────────────────────────────── */}

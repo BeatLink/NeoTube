@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { pluginManager } from '../plugins/manager'
+import { getSettings, getWatchedVideoIds } from '../db/index'
 import type { SearchResult } from '../plugins/types'
 import './Search.css'
 
@@ -23,6 +24,28 @@ export default function Search() {
   const [params] = useSearchParams()
   const query = params.get('q') ?? ''
   const [state, setState] = useState<State>({ status: 'idle' })
+  const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
+  const [watchedStyle, setWatchedStyle] = useState<'normal' | 'dim' | 'hide'>('normal')
+
+  useEffect(() => {
+    Promise.all([getSettings(), getWatchedVideoIds()])
+      .then(([settings, ids]) => {
+        setWatchedStyle(settings.watchedVideoStyle ?? 'normal')
+        setWatchedIds(ids)
+      })
+      .catch(() => {})
+
+    const refresh = () => {
+      Promise.all([getSettings(), getWatchedVideoIds()])
+        .then(([settings, ids]) => {
+          setWatchedStyle(settings.watchedVideoStyle ?? 'normal')
+          setWatchedIds(ids)
+        })
+        .catch(() => {})
+    }
+    window.addEventListener('history-changed', refresh)
+    return () => window.removeEventListener('history-changed', refresh)
+  }, [])
 
   useEffect(() => {
     if (!query) { setState({ status: 'idle' }); return }
@@ -58,32 +81,40 @@ export default function Search() {
 
   if (state.status !== 'ready') return null
 
+  const visibleResults = watchedStyle === 'hide'
+    ? state.results.filter(r => !watchedIds.has(r.videoId))
+    : state.results
+
   return (
     <div className="search-page">
       <h2 className="search-heading">Results for "{query}"</h2>
       <ul className="search-results">
-        {state.results.map(r => (
-          <li key={r.videoId} className="result-card">
-            <Link to={`/watch/${r.videoId}`} className="result-thumb-wrap">
-              {r.thumbnail
-                ? <img className="result-thumb" src={r.thumbnail} alt="" loading="lazy" />
-                : <div className="result-thumb result-thumb-blank" />
-              }
-              {r.duration > 0 && (
-                <span className="result-duration">{formatDuration(r.duration)}</span>
-              )}
-            </Link>
-            <div className="result-info">
-              <Link to={`/watch/${r.videoId}`} className="result-title">{r.title}</Link>
-              <Link to={`/channel/${r.channelId}`} className="result-channel">
-                {r.channelName}
+        {visibleResults.map(r => {
+          const isWatched = watchedIds.has(r.videoId)
+          const cardClass = `result-card${isWatched && watchedStyle === 'dim' ? ' result-watched-dim' : ''}`
+          return (
+            <li key={r.videoId} className={cardClass}>
+              <Link to={`/watch/${r.videoId}`} className="result-thumb-wrap">
+                {r.thumbnail
+                  ? <img className="result-thumb" src={r.thumbnail} alt="" loading="lazy" />
+                  : <div className="result-thumb result-thumb-blank" />
+                }
+                {r.duration > 0 && (
+                  <span className="result-duration">{formatDuration(r.duration)}</span>
+                )}
               </Link>
-              {r.viewCount !== undefined && (
-                <p className="result-views">{r.viewCount.toLocaleString()} views</p>
-              )}
-            </div>
-          </li>
-        ))}
+              <div className="result-info">
+                <Link to={`/watch/${r.videoId}`} className="result-title">{r.title}</Link>
+                <Link to={`/channel/${r.channelId}`} className="result-channel">
+                  {r.channelName}
+                </Link>
+                {r.viewCount !== undefined && (
+                  <p className="result-views">{r.viewCount.toLocaleString()} views</p>
+                )}
+              </div>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

@@ -3,6 +3,8 @@ import { fileURLToPath } from 'url'
 import { spawn } from 'child_process'
 import { createContext, runInContext } from 'vm'
 import path from 'path'
+import fs from 'fs/promises'
+import os from 'os'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = process.env.NODE_ENV === 'development'
@@ -215,6 +217,109 @@ function registerYoutubeJsHandlers() {
   })
 }
 
+// ─── Avatar download ─────────────────────────────────────────────────────────
+// Fetches an image URL in the main process (no CORS restrictions) and returns
+// it as a base64 data URI ready for storage in PouchDB.
+
+function registerAvatarHandlers() {
+  ipcMain.handle('avatar:download', async (_event, url: string) => {
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const buffer = await response.arrayBuffer()
+    const contentType = response.headers.get('content-type') ?? 'image/jpeg'
+    const base64 = Buffer.from(buffer).toString('base64')
+    return `data:${contentType};base64,${base64}`
+  })
+}
+
+// ─── FreeTube import ─────────────────────────────────────────────────────────
+
+function registerFreetubeHandlers() {
+  // Search well-known FreeTube data directories and return the ones that exist.
+  ipcMain.handle('freetube:scan', async () => {
+    const home = os.homedir()
+    const candidates = [
+      path.join(home, '.config', 'FreeTube'),
+      path.join(home, '.var', 'app', 'io.freetubeapp.FreeTube', 'config', 'FreeTube'),
+      path.join(home, 'snap', 'freetube', 'current', '.config', 'FreeTube'),
+      path.join(home, 'AppData', 'Roaming', 'FreeTube'),
+      path.join(home, 'Library', 'Application Support', 'FreeTube'),
+    ]
+    const found: string[] = []
+    for (const dir of candidates) {
+      try {
+        await fs.access(path.join(dir, 'profiles.db'))
+        found.push(dir)
+      } catch { /* not present */ }
+    }
+    return found
+  })
+
+  // Read and parse profiles.db and history.db from a given FreeTube data dir.
+  ipcMain.handle('freetube:readData', async (_event, dir: string) => {
+    // FreeTube older versions use NDJSON; newer versions use a plain JSON array.
+    function parseDb(raw: string): unknown[] {
+      const t = raw.trim()
+      try {
+        const v = JSON.parse(t)
+        return Array.isArray(v) ? v : [v]
+      } catch {
+        return t.split('\n').filter(Boolean).map(l => JSON.parse(l))
+      }
+    }
+
+    type FtSub = { id: string; name: string; thumbnail?: string }
+    type FtEntry = {
+      videoId?: string; id?: string; title?: string
+      author?: string; authorId?: string
+      lengthSeconds?: number; timeWatched?: number
+      videoThumbnails?: Array<{ url: string }>
+    }
+
+    const subscriptions: FtSub[] = []
+    try {
+      const raw = await fs.readFile(path.join(dir, 'profiles.db'), 'utf-8')
+      const profiles = parseDb(raw) as Array<{ subscriptions?: FtSub[] }>
+      const seen = new Set<string>()
+      for (const profile of profiles) {
+        for (const sub of profile?.subscriptions ?? []) {
+          if (sub?.id && sub?.name && !seen.has(sub.id)) {
+            seen.add(sub.id)
+            subscriptions.push({ id: sub.id, name: sub.name, thumbnail: sub.thumbnail ?? '' })
+          }
+        }
+      }
+    } catch { /* missing or corrupt */ }
+
+    const history: Array<{
+      videoId: string; title: string; channelId: string; channelName: string
+      thumbnail: string; duration: number; watchedAt: string
+    }> = []
+    try {
+      const raw = await fs.readFile(path.join(dir, 'history.db'), 'utf-8')
+      const entries = parseDb(raw) as FtEntry[]
+      for (const e of entries) {
+        const videoId = e.videoId ?? e.id ?? ''
+        if (!videoId) continue
+        history.push({
+          videoId,
+          title: e.title ?? '',
+          channelId: e.authorId ?? '',
+          channelName: e.author ?? '',
+          thumbnail: e.videoThumbnails?.[0]?.url ?? '',
+          duration: e.lengthSeconds ?? 0,
+          // timeWatched is a Unix timestamp in seconds
+          watchedAt: e.timeWatched
+            ? new Date(e.timeWatched * 1000).toISOString()
+            : new Date().toISOString(),
+        })
+      }
+    } catch { /* missing or corrupt */ }
+
+    return { subscriptions, history }
+  })
+}
+
 // ─── Window ───────────────────────────────────────────────────────────────────
 
 function createWindow() {
@@ -238,8 +343,10 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  registerAvatarHandlers()
   registerYtdlpHandlers()
   registerYoutubeJsHandlers()
+  registerFreetubeHandlers()
   createWindow()
 
   app.on('activate', () => {

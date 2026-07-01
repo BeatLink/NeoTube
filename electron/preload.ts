@@ -2,6 +2,20 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
+  downloadAvatar: (url: string): Promise<string> =>
+    ipcRenderer.invoke('avatar:download', url),
+})
+
+contextBridge.exposeInMainWorld('freetube', {
+  scan: (): Promise<string[]> =>
+    ipcRenderer.invoke('freetube:scan'),
+  readData: (dir: string): Promise<{
+    subscriptions: Array<{ id: string; name: string; thumbnail: string }>
+    history: Array<{
+      videoId: string; title: string; channelId: string; channelName: string
+      thumbnail: string; duration: number; watchedAt: string
+    }>
+  }> => ipcRenderer.invoke('freetube:readData', dir),
 })
 
 contextBridge.exposeInMainWorld('ytdlp', {

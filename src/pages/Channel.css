@@ -190,3 +190,5 @@
 }
 
 a.channel-card-title:hover { text-decoration: underline; }
+
+.channel-card-watched-dim { opacity: 0.4; }

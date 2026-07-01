@@ -66,7 +66,13 @@
   flex: 1;
   overflow-y: auto;
   padding-bottom: 12px;
+  scrollbar-width: none;
 }
+
+.sidebar-subs::-webkit-scrollbar { display: none; }
+
+.sidebar:hover .sidebar-subs { scrollbar-width: thin; }
+.sidebar:hover .sidebar-subs::-webkit-scrollbar { display: block; }
 
 .sidebar-sub-item {
   display: flex;

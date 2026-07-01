@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ThemeProvider } from '../contexts/ThemeContext'
 import Home from '../pages/Home'
-import Subscriptions from '../pages/Subscriptions'
+import Subscriptions from '../pages/Channels'
 import Settings from '../pages/Settings'
 import Watch from '../pages/Watch'
 import Search from '../pages/Search'
@@ -76,12 +76,17 @@ vi.mock('../plugins/manager', () => {
 
 // Inline vi.fn() — must not reference outer variables (vi.mock is hoisted)
 vi.mock('../db/index', () => ({
-  getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true }),
+  getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true, watchedVideoStyle: 'normal' }),
   saveSettings: vi.fn().mockResolvedValue(undefined),
   isSubscribed: vi.fn().mockResolvedValue(false),
   subscribe: vi.fn().mockResolvedValue(undefined),
   unsubscribe: vi.fn().mockResolvedValue(undefined),
   getSubscriptions: vi.fn().mockResolvedValue([]),
+  recordWatch: vi.fn().mockResolvedValue(undefined),
+  getHistory: vi.fn().mockResolvedValue([]),
+  getWatchedVideoIds: vi.fn().mockResolvedValue(new Set()),
+  removeFromHistory: vi.fn().mockResolvedValue(undefined),
+  clearHistory: vi.fn().mockResolvedValue(undefined),
 }))
 
 // Typed references to the mocked functions

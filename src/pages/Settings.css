@@ -102,3 +102,112 @@
   display: flex;
   flex-direction: column;
 }
+
+/* ── FreeTube import ──────────────────────────────────────────────────────── */
+
+.ft-import-section {
+  grid-column: 1 / -1;  /* span full grid width */
+}
+
+.ft-unavailable {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.ft-import {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 480px;
+}
+
+.ft-scan-btn,
+.ft-import-btn,
+.ft-cancel-btn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  background: transparent;
+  color: var(--text);
+}
+
+.ft-scan-btn:hover  { background: var(--surface-hover); }
+
+.ft-import-btn {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ft-import-btn:hover:not(:disabled) { background: var(--accent-bg); }
+.ft-import-btn:disabled { opacity: 0.4; cursor: default; }
+
+.ft-cancel-btn:hover { background: var(--surface-hover); }
+
+.ft-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ft-path {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: monospace;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin: 0;
+  word-break: break-all;
+}
+
+.ft-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ft-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ft-check input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.ft-check-empty {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ft-count {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+
+.ft-msg {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.ft-msg-ok    { color: #4caf50; }
+.ft-msg-warn  { color: var(--text-muted); }
+.ft-msg-error { color: #e53935; }

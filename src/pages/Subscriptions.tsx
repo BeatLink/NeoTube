@@ -1,77 +1,163 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSubscriptions, unsubscribe } from '../db/index'
+import { getSubscriptions, getSettings, getWatchedVideoIds } from '../db/index'
+import { pluginManager } from '../plugins/manager'
 import type { Subscription } from '../types'
+import type { SearchResult } from '../plugins/types'
 import './Subscriptions.css'
 
+type Section =
+  | { channel: Subscription; status: 'loading' }
+  | { channel: Subscription; status: 'done'; videos: SearchResult[] }
+  | { channel: Subscription; status: 'error' }
+
+function formatDuration(seconds: number): string {
+  if (!seconds) return ''
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+const VIDEOS_PER_CHANNEL = 8
+const BATCH_SIZE = 3
+
 export default function Subscriptions() {
-  const [subs, setSubs] = useState<Subscription[]>([])
-  const [filter, setFilter] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [sections, setSections] = useState<Section[]>([])
+  const [initialising, setInitialising] = useState(true)
+  const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
+  const [watchedStyle, setWatchedStyle] = useState<'normal' | 'dim' | 'hide'>('normal')
+  const [hideWatched, setHideWatched] = useState(false)
 
   useEffect(() => {
-    getSubscriptions()
-      .then(setSubs)
-      .finally(() => setLoading(false))
+    Promise.all([getSettings(), getWatchedVideoIds()])
+      .then(([s, ids]) => { setWatchedStyle(s.watchedVideoStyle ?? 'normal'); setWatchedIds(ids) })
+      .catch(() => {})
+
+    const refresh = () =>
+      Promise.all([getSettings(), getWatchedVideoIds()])
+        .then(([s, ids]) => { setWatchedStyle(s.watchedVideoStyle ?? 'normal'); setWatchedIds(ids) })
+        .catch(() => {})
+    window.addEventListener('history-changed', refresh)
+    return () => window.removeEventListener('history-changed', refresh)
   }, [])
 
-  async function handleUnsubscribe(channelId: string) {
-    await unsubscribe(channelId)
-    setSubs(prev => prev.filter(s => s.channelId !== channelId))
-  }
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const subs = await getSubscriptions()
+      if (cancelled) return
+      if (!subs.length) { setInitialising(false); return }
 
-  const filtered = filter
-    ? subs.filter(s => s.channelName.toLowerCase().includes(filter.toLowerCase()))
-    : subs
+      setSections(subs.map(channel => ({ channel, status: 'loading' })))
+      setInitialising(false)
 
-  if (loading) return <p className="subs-status">Loading…</p>
+      let plugin
+      try { plugin = pluginManager.getActive() } catch { return }
+
+      for (let i = 0; i < subs.length; i += BATCH_SIZE) {
+        if (cancelled) break
+        const batch = subs.slice(i, i + BATCH_SIZE)
+        await Promise.allSettled(batch.map(async sub => {
+          try {
+            const videos = await (plugin!.getChannelVideos?.(sub.channelId, VIDEOS_PER_CHANNEL) ?? Promise.resolve([]))
+            if (!cancelled) setSections(prev => prev.map(s =>
+              s.channel.channelId === sub.channelId ? { channel: sub, status: 'done', videos } : s
+            ))
+          } catch {
+            if (!cancelled) setSections(prev => prev.map(s =>
+              s.channel.channelId === sub.channelId ? { channel: sub, status: 'error' } : s
+            ))
+          }
+        }))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  if (initialising) return <p className="feed-status">Loading…</p>
+
+  if (!sections.length) return (
+    <p className="feed-empty">
+      You haven't subscribed to any channels yet. Subscribe from a video's watch page or channel page.
+    </p>
+  )
+
+  const shouldHide = hideWatched || watchedStyle === 'hide'
 
   return (
-    <div className="subs-page">
-      <div className="subs-header">
-        <h1 className="subs-heading">Subscriptions</h1>
-        {subs.length > 0 && (
-          <input
-            className="subs-search"
-            type="search"
-            placeholder="Filter channels…"
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            aria-label="Filter subscriptions"
-          />
-        )}
+    <div className="feed-page">
+      <div className="feed-header">
+        <h1 className="feed-heading">Subscriptions</h1>
+        <button
+          className={`feed-toggle${hideWatched ? ' feed-toggle-active' : ''}`}
+          onClick={() => setHideWatched(h => !h)}
+          aria-pressed={hideWatched}
+        >
+          Unwatched only
+        </button>
       </div>
+      {sections.map(section => {
+        if (section.status === 'done' && !section.videos.length) return null
 
-      {subs.length === 0 ? (
-        <p className="subs-empty">
-          You haven't subscribed to any channels yet. Subscribe from a video's watch page or channel page.
-        </p>
-      ) : filtered.length === 0 ? (
-        <p className="subs-empty">No channels match "{filter}".</p>
-      ) : (
-        <ul className="subs-grid">
-          {filtered.map(sub => (
-            <li key={sub.channelId} className="subs-card">
-              <Link to={`/channel/${sub.channelId}`} className="subs-card-link">
-                {sub.avatar
-                  ? <img className="subs-card-avatar" src={sub.avatar} alt="" loading="lazy" />
-                  : <div className="subs-card-avatar subs-card-avatar-initial" aria-hidden="true">
-                      {sub.channelName.charAt(0).toUpperCase()}
-                    </div>
-                }
-                <p className="subs-card-name">{sub.channelName}</p>
-              </Link>
-              <button
-                className="subs-card-unsub"
-                onClick={() => handleUnsubscribe(sub.channelId)}
-                aria-label={`Unsubscribe from ${sub.channelName}`}
-              >
-                Unsubscribe
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+        const videos = section.status === 'done'
+          ? (shouldHide
+            ? section.videos.filter(v => !watchedIds.has(v.videoId))
+            : section.videos)
+          : []
+
+        if (section.status === 'done' && !videos.length) return null
+
+        return (
+          <section key={section.channel.channelId} className="feed-section">
+            <Link to={`/channel/${section.channel.channelId}`} className="feed-channel-link">
+              {section.channel.avatar
+                ? <img className="feed-channel-avatar" src={section.channel.avatar} alt="" loading="lazy" />
+                : <div className="feed-channel-avatar feed-channel-avatar-initial" aria-hidden="true">
+                    {section.channel.channelName.charAt(0).toUpperCase()}
+                  </div>
+              }
+              <span className="feed-channel-name">{section.channel.channelName}</span>
+            </Link>
+
+            {section.status === 'loading' && (
+              <p className="feed-section-status">Loading…</p>
+            )}
+            {section.status === 'error' && (
+              <p className="feed-section-status feed-section-error">Failed to load videos.</p>
+            )}
+            {section.status === 'done' && (
+              <ul className="feed-grid">
+                {videos.map(v => {
+                  const isWatched = watchedIds.has(v.videoId)
+                  return (
+                    <li
+                      key={v.videoId}
+                      className={`feed-card${isWatched && !shouldHide && watchedStyle === 'dim' ? ' feed-card-dim' : ''}`}
+                    >
+                      <Link to={`/watch/${v.videoId}`} className="feed-card-thumb-link">
+                        <div className="feed-card-thumb">
+                          {v.thumbnail
+                            ? <img src={v.thumbnail} alt="" loading="lazy" />
+                            : <div className="feed-card-thumb-blank" />
+                          }
+                          {v.duration > 0 && (
+                            <span className="feed-card-duration">{formatDuration(v.duration)}</span>
+                          )}
+                        </div>
+                      </Link>
+                      <Link to={`/watch/${v.videoId}`} className="feed-card-title">
+                        {v.title}
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+        )
+      })}
     </div>
   )
 }

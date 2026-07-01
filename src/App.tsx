@@ -6,6 +6,8 @@ import Watch from './pages/Watch'
 import Search from './pages/Search'
 import Channel from './pages/Channel'
 import Subscriptions from './pages/Subscriptions'
+import Channels from './pages/Channels'
+import History from './pages/History'
 import Settings from './pages/Settings'
 import './App.css'
 
@@ -20,6 +22,8 @@ export default function App() {
             <Route path="search" element={<Search />} />
             <Route path="channel/:channelId" element={<Channel />} />
             <Route path="subscriptions" element={<Subscriptions />} />
+            <Route path="channels" element={<Channels />} />
+            <Route path="history" element={<History />} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>

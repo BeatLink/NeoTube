@@ -39,8 +39,13 @@ export interface WatchHistoryEntry {
   _rev?: string
   type: 'history'
   videoId: string
-  watchedAt: string
-  progress: number
+  title: string
+  channelId: string
+  channelName: string
+  thumbnail: string
+  duration: number
+  watchedAt: string   // ISO — most recent watch
+  watchCount: number
 }
 
 export interface UserSettings {
@@ -51,4 +56,5 @@ export interface UserSettings {
   activePlugin: string
   defaultQuality: '144p' | '360p' | '720p' | '1080p' | 'best'
   privacyMode: boolean
+  watchedVideoStyle: 'normal' | 'dim' | 'hide'
 }

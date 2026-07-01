@@ -111,3 +111,5 @@
   color: var(--text-muted);
   margin: 0;
 }
+
+.result-watched-dim { opacity: 0.4; }
