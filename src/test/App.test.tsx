@@ -8,9 +8,9 @@ vi.mock('../db/index', () => ({
 }))
 
 describe('App', () => {
-  it('renders the home page heading', () => {
+  it('renders the home page URL bar', () => {
     render(<App />)
-    expect(screen.getByText('NeoTube')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/paste a youtube url/i)).toBeInTheDocument()
   })
 
   it('renders navigation links', () => {
