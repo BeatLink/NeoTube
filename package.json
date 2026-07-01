@@ -8,7 +8,7 @@
     "dev": "vite",
     "dev:electron": "npm run build:electron:main && concurrently --names VITE,ELECTRON --prefix-colors blue,green \"npm run dev\" \"NODE_ENV=development electron .\"",
     "build": "tsc -b && vite build",
-    "build:electron:main": "esbuild electron/main.ts electron/preload.ts --bundle --platform=node --external:electron --format=esm --outdir=dist-electron",
+    "build:electron:main": "esbuild electron/main.ts --bundle --platform=node --external:electron --format=esm --outdir=dist-electron && esbuild electron/preload.ts --bundle --platform=node --external:electron --format=cjs --outfile=dist-electron/preload.cjs",
     "build:electron": "npm run build && npm run build:electron:main && electron-builder",
     "preview": "vite preview",
     "test": "vitest",
@@ -22,7 +22,8 @@
     "pouchdb-browser": "^9.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.18.1"
+    "react-router-dom": "^7.18.1",
+    "youtubei.js": "^17.2.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.1",
