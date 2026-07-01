@@ -33,8 +33,8 @@ Video data (metadata, stream URLs, search) is fetched through a plugin. Each plu
 | Plugin | Transport | Availability |
 |--------|-----------|-------------|
 | `ytdlp` | Electron IPC → local `yt-dlp` binary | Desktop only |
+| `youtubejs` | Electron IPC → Innertube (main process, Node vm for decipher) | Desktop only |
 | `invidious` | HTTP to a user-configured Invidious instance | All platforms _(planned)_ |
-| `youtubejs` | youtube.js in-process | All platforms _(planned)_ |
 
 Adding a new backend = implementing `VideoPlugin` in `src/plugins/<name>/index.ts` and calling `pluginManager.register(new MyPlugin())` in `src/main.tsx`.
 
@@ -43,18 +43,24 @@ Adding a new backend = implementing `VideoPlugin` in `src/plugins/<name>/index.t
 ```
 NeoTube/
 ├── electron/              # Electron main + preload (desktop wrapper)
-│   ├── main.ts            # IPC handlers (yt-dlp, window management)
-│   ├── preload.ts         # contextBridge API surface
+│   ├── main.ts            # IPC handlers (yt-dlp, youtubejs, window management)
+│   ├── preload.ts         # contextBridge API surface (window.ytdlp, window.ytjs)
 │   └── tsconfig.json
 ├── src/
 │   ├── components/        # Shared UI components (Layout, VideoPlayer)
 │   ├── db/                # PouchDB access layer (lazy singleton)
 │   ├── hooks/             # Custom React hooks (useTheme)
-│   ├── pages/             # Page-level components (Home, Watch, Subscriptions, Settings)
+│   ├── pages/             # Page-level components
+│   │   ├── Home.tsx       # Landing page
+│   │   ├── Watch.tsx      # Video player page (route: /watch/:videoId)
+│   │   ├── Search.tsx     # Search results page (route: /search?q=...)
+│   │   ├── Subscriptions.tsx
+│   │   └── Settings.tsx   # Theme + plugin selection
 │   ├── plugins/           # Video backend plugin system
 │   │   ├── types.ts       # VideoPlugin interface + shared domain types
 │   │   ├── manager.ts     # PluginManager singleton
-│   │   └── ytdlp/         # yt-dlp plugin (Electron)
+│   │   ├── ytdlp/         # yt-dlp plugin (Electron IPC)
+│   │   └── youtubejs/     # youtube.js plugin (Electron IPC via Innertube)
 │   ├── test/              # Vitest test files + setup
 │   └── types/             # Shared TypeScript types
 ├── public/                # Static assets
@@ -64,6 +70,22 @@ NeoTube/
 ├── shell.nix              # Nix dev shell (includes yt-dlp)
 └── package.nix            # Nix package definition
 ```
+
+### UI Layout
+
+```
+┌─────────────┬────────────────────────────────────────────┐
+│             │  [Search or paste a YouTube URL…] [Search] │  ← topbar
+│  Sidebar    ├────────────────────────────────────────────┤
+│  • Home     │                                            │
+│  • Subs     │   <page content (Outlet)>                  │  ← content
+│  • Settings │                                            │
+└─────────────┴────────────────────────────────────────────┘
+```
+
+The topbar search input accepts:
+- **YouTube URL** → navigates directly to `/watch/:videoId`
+- **Search term** → navigates to `/search?q=...`
 
 ---
 
@@ -88,9 +110,12 @@ NeoTube/
 ## Features
 
 - Light / dark theme, persisted in PouchDB and cached in localStorage
-- Video playback via pluggable backend (yt-dlp on Desktop)
+- Universal topbar search: YouTube URL → direct watch, search term → results page
+- Search results page with thumbnail, duration, channel, view count
+- Video playback via pluggable backend (yt-dlp or youtube.js on Desktop)
 - Quality selection from available streams
 - Watch page: title, channel, view count, collapsible description
+- Settings page: theme toggle, active plugin selector
 
 ---
 
@@ -147,9 +172,9 @@ _To be defined._
 - [ ] Plugin selector in Settings page
 - [ ] Configurable Invidious instance URL
 
-### Phase 4 — Search & Browse
-- [ ] Search bar (Home page)
-- [ ] Search results page
+### Phase 4 — Search & Browse ✓
+- [x] Topbar search (all pages): URL → Watch, query → Search results
+- [x] Search results page with thumbnail, duration, channel name
 - [ ] Channel pages
 - [ ] Thumbnail lazy loading
 

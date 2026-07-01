@@ -1,77 +1,19 @@
-.home {
+.home-hero {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  max-width: 960px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 60vh;
+  text-align: center;
 }
 
-/* URL bar */
-.url-bar {
-  display: flex;
-  gap: 8px;
-}
-
-.url-input {
-  flex: 1;
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.url-input:focus {
-  border-color: var(--accent);
-}
-
-.url-input::placeholder {
-  color: var(--text-muted);
-}
-
-.url-submit {
-  padding: 10px 20px;
-  border-radius: 8px;
-  border: none;
-  background: var(--accent);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.url-submit:hover {
-  opacity: 0.85;
-}
-
-/* Status messages */
-.home-status {
-  color: var(--text-muted);
-  font-size: 14px;
-  margin: 0;
-}
-
-.home-error {
+.home-hero h1 {
+  font-size: 2.5rem;
   color: var(--accent);
 }
 
-/* Player + meta */
-.home-player {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.home-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.home-channel {
+.home-hero p {
+  font-size: 1rem;
   color: var(--text-muted);
-  font-size: 0.875rem;
-  margin-top: 2px;
 }

@@ -1,14 +1,18 @@
-/* App shell layout */
+/* App shell — sidebar on left, topbar + content on right */
 .app-shell {
-  display: flex;
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  grid-template-rows: 56px 1fr;
+  grid-template-areas:
+    "sidebar topbar"
+    "sidebar content";
   height: 100vh;
   overflow: hidden;
 }
 
-/* Sidebar */
+/* ── Sidebar ──────────────────────────────────────────── */
 .sidebar {
-  width: 200px;
-  flex-shrink: 0;
+  grid-area: sidebar;
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
@@ -28,37 +32,76 @@
   transition: background 0.15s;
 }
 
-.sidebar a:hover {
-  background: var(--surface-hover);
+.sidebar a:hover  { background: var(--surface-hover); }
+.sidebar a.active { background: var(--accent-bg); color: var(--accent); }
+
+/* ── Top bar ──────────────────────────────────────────── */
+.topbar {
+  grid-area: topbar;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
 }
 
-.sidebar a.active {
-  background: var(--accent-bg);
-  color: var(--accent);
+.topbar-search {
+  flex: 1;
+  display: flex;
+  gap: 8px;
 }
 
-.theme-toggle {
-  margin-top: auto;
-  display: block;
-  width: 100%;
-  padding: 10px 14px;
+.topbar-input {
+  flex: 1;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.topbar-input:focus  { border-color: var(--accent); }
+.topbar-input::placeholder { color: var(--text-muted); }
+
+/* clear button injected by type="search" — match text colour */
+.topbar-input::-webkit-search-cancel-button { cursor: pointer; }
+
+.topbar-submit {
+  padding: 8px 18px;
+  border-radius: 20px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.topbar-submit:hover { opacity: 0.85; }
+
+.topbar-theme {
+  flex-shrink: 0;
+  padding: 6px 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
-  font-size: 13px;
-  text-align: left;
+  font-size: 16px;
   cursor: pointer;
   transition: background 0.15s;
 }
 
-.theme-toggle:hover {
-  background: var(--surface-hover);
-}
+.topbar-theme:hover { background: var(--surface-hover); }
 
-/* Content area */
+/* ── Content area ─────────────────────────────────────── */
 .content {
-  flex: 1;
+  grid-area: content;
   overflow-y: auto;
   padding: 24px;
 }

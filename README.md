@@ -36,6 +36,14 @@ npm install
 npm run dev
 ```
 
+### Run the desktop app (Electron)
+
+```bash
+npm run dev:electron
+```
+
+Requires the Nix dev shell (provides `electron` and `yt-dlp` binaries).
+
 ### Run tests
 
 ```bash
