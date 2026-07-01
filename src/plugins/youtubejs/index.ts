@@ -1,4 +1,4 @@
-import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, StreamUrl } from '../types'
+import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, ChannelPlaylist, StreamUrl } from '../types'
 
 interface YtjsRawChannelInfo {
   channel_id: string
@@ -8,12 +8,29 @@ interface YtjsRawChannelInfo {
   subscriber_count_text?: string
 }
 
+interface YtjsRawChannelVideo {
+  video_id: string
+  title: string
+  thumbnail: string
+  duration: number
+  view_count_text?: string
+}
+
+interface YtjsRawChannelPlaylist {
+  playlist_id: string
+  title: string
+  thumbnail: string
+  video_count_text?: string | null
+}
+
 declare global {
   interface Window {
     ytjs?: {
       getInfo(videoId: string): Promise<YtjsRawInfo>
       search(query: string, limit?: number): Promise<YtjsRawResult[]>
       getChannelInfo(channelId: string): Promise<YtjsRawChannelInfo>
+      getChannelVideos(channelId: string, limit?: number): Promise<YtjsRawChannelVideo[]>
+      getChannelPlaylists(channelId: string, limit?: number): Promise<YtjsRawChannelPlaylist[]>
     }
   }
 }
@@ -137,5 +154,34 @@ export class YoutubeJsPlugin implements VideoPlugin {
       description: raw.description,
       subscriberCount,
     }
+  }
+
+  async getChannelVideos(channelId: string, limit = 30): Promise<SearchResult[]> {
+    if (!window.ytjs) throw new Error('youtube.js IPC bridge not available')
+    const items = await window.ytjs.getChannelVideos(channelId, limit)
+    return items.map(v => ({
+      videoId: v.video_id,
+      title: v.title,
+      channelId,
+      channelName: '',
+      thumbnail: v.thumbnail,
+      duration: v.duration,
+      viewCount: undefined,
+    }))
+  }
+
+  async getChannelPlaylists(channelId: string, limit = 20): Promise<ChannelPlaylist[]> {
+    if (!window.ytjs) throw new Error('youtube.js IPC bridge not available')
+    const items = await window.ytjs.getChannelPlaylists(channelId, limit)
+    return items.map(p => {
+      const countText = p.video_count_text ?? ''
+      const countNum = parseInt(countText.replace(/\D/g, ''), 10)
+      return {
+        playlistId: p.playlist_id,
+        title: p.title,
+        thumbnail: p.thumbnail,
+        videoCount: isNaN(countNum) ? undefined : countNum,
+      }
+    })
   }
 }

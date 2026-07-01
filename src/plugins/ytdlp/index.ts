@@ -1,4 +1,4 @@
-import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, StreamUrl } from '../types'
+import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, ChannelPlaylist, StreamUrl } from '../types'
 import type { YtdlpRawInfo, YtdlpFormat } from './types'
 
 interface YtdlpRawChannelInfo {
@@ -8,11 +8,28 @@ interface YtdlpRawChannelInfo {
   description: string
 }
 
+interface YtdlpRawFlatEntry {
+  id: string
+  title: string
+  url?: string
+  duration?: number
+  thumbnails?: Array<{ url: string; width?: number }>
+  thumbnail?: string
+  view_count?: number
+  upload_date?: string
+  channel?: string
+  uploader?: string
+  channel_id?: string
+  uploader_id?: string
+}
+
 // Window shape injected by the Electron preload
 interface YtdlpBridge {
   getInfo: (videoId: string) => Promise<YtdlpRawInfo>
   search: (query: string, limit: number) => Promise<YtdlpRawInfo[]>
   getChannelInfo: (channelId: string) => Promise<YtdlpRawChannelInfo>
+  getChannelVideos: (channelId: string, limit?: number) => Promise<YtdlpRawFlatEntry[]>
+  getChannelPlaylists: (channelId: string, limit?: number) => Promise<YtdlpRawFlatEntry[]>
 }
 
 declare global {
@@ -121,5 +138,28 @@ export class YtdlpPlugin implements VideoPlugin {
       avatar: raw.avatar,
       description: raw.description,
     }
+  }
+
+  async getChannelVideos(channelId: string, limit = 30): Promise<SearchResult[]> {
+    const entries = await this.bridge.getChannelVideos(channelId, limit)
+    return entries.map(e => ({
+      videoId: e.id,
+      title: e.title,
+      channelId: e.channel_id ?? e.uploader_id ?? channelId,
+      channelName: e.channel ?? e.uploader ?? '',
+      thumbnail: bestThumbnail(e as unknown as YtdlpRawInfo),
+      duration: e.duration ?? 0,
+      viewCount: e.view_count,
+      publishedAt: e.upload_date ? parseDateStr(e.upload_date) : undefined,
+    }))
+  }
+
+  async getChannelPlaylists(channelId: string, limit = 20): Promise<ChannelPlaylist[]> {
+    const entries = await this.bridge.getChannelPlaylists(channelId, limit)
+    return entries.map(e => ({
+      playlistId: e.id,
+      title: e.title,
+      thumbnail: bestThumbnail(e as unknown as YtdlpRawInfo),
+    }))
   }
 }

@@ -43,6 +43,13 @@ export interface ChannelInfo {
   subscriberCount?: number
 }
 
+export interface ChannelPlaylist {
+  playlistId: string
+  title: string
+  thumbnail: string
+  videoCount?: number
+}
+
 // ─── Plugin interface ─────────────────────────────────────────────────────────
 
 export interface VideoPlugin {
@@ -59,4 +66,6 @@ export interface VideoPlugin {
   getVideoInfo(videoId: string): Promise<VideoInfo>
   search(query: string, limit?: number): Promise<SearchResult[]>
   getChannelInfo(channelId: string): Promise<ChannelInfo>
+  getChannelVideos?(channelId: string, limit?: number): Promise<SearchResult[]>
+  getChannelPlaylists?(channelId: string, limit?: number): Promise<ChannelPlaylist[]>
 }

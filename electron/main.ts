@@ -48,6 +48,18 @@ function registerYtdlpHandlers() {
       description: '',
     }
   })
+
+  ipcMain.handle('ytdlp:channelVideos', async (_event, channelId: string, limit = 30) => {
+    const url = `https://www.youtube.com/channel/${channelId}/videos`
+    const raw = await runYtdlp(['--flat-playlist', '--dump-json', '--playlist-end', String(limit), url])
+    return raw.trim().split('\n').filter(Boolean).map((l: string) => JSON.parse(l))
+  })
+
+  ipcMain.handle('ytdlp:channelPlaylists', async (_event, channelId: string, limit = 20) => {
+    const url = `https://www.youtube.com/channel/${channelId}/playlists`
+    const raw = await runYtdlp(['--flat-playlist', '--dump-json', '--playlist-end', String(limit), url])
+    return raw.trim().split('\n').filter(Boolean).map((l: string) => JSON.parse(l))
+  })
 }
 
 // ─── youtube.js (Innertube) ───────────────────────────────────────────────────
@@ -143,6 +155,45 @@ function registerYoutubeJsHandlers() {
       description: meta?.description ?? '',
       subscriber_count_text: subText,
     }
+  })
+
+  ipcMain.handle('ytjs:channelVideos', async (_event, channelId: string, limit = 30) => {
+    const yt = await getInnertubeClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const channel = await yt.getChannel(channelId) as any
+    if (!channel.has_videos) return []
+    const tab = await channel.getVideos()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const items: any[] = tab?.videos ?? tab?.items ?? []
+    return items.slice(0, limit).map((v: any) => {
+      const thumbs: Array<{ url: string }> = v.thumbnails ?? v.thumbnail ?? []
+      return {
+        video_id: v.id ?? v.video_id,
+        title: v.title?.text ?? v.title ?? '',
+        thumbnail: thumbs.length > 0 ? thumbs[thumbs.length - 1].url : '',
+        duration: v.duration?.seconds ?? 0,
+        view_count_text: v.view_count?.text ?? v.short_view_count?.text ?? '',
+      }
+    }).filter((v: any) => v.video_id)
+  })
+
+  ipcMain.handle('ytjs:channelPlaylists', async (_event, channelId: string, limit = 20) => {
+    const yt = await getInnertubeClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const channel = await yt.getChannel(channelId) as any
+    if (!channel.has_playlists) return []
+    const tab = await channel.getPlaylists()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const items: any[] = tab?.playlists ?? tab?.items ?? []
+    return items.slice(0, limit).map((p: any) => {
+      const thumbs: Array<{ url: string }> = p.thumbnails ?? p.thumbnail ?? []
+      return {
+        playlist_id: p.id,
+        title: p.title?.text ?? p.title ?? '',
+        thumbnail: thumbs.length > 0 ? thumbs[0].url : '',
+        video_count_text: p.video_count?.text ?? p.video_count ?? null,
+      }
+    }).filter((p: any) => p.playlist_id)
   })
 }
 
