@@ -1,7 +1,7 @@
 import PouchDB from 'pouchdb'
 import type { UserSettings } from '../types'
 
-export const db = new PouchDB('neotube')
+export const db = new PouchDB<UserSettings>('neotube')
 
 const DEFAULT_SETTINGS: UserSettings = {
   _id: 'settings',
@@ -20,9 +20,9 @@ export async function getSettings(): Promise<UserSettings> {
   }
 }
 
-export async function saveSettings(settings: Partial<UserSettings>): Promise<void> {
+export async function saveSettings(patch: Partial<UserSettings>): Promise<void> {
   const current = await getSettings()
-  await db.put({ ...current, ...settings })
+  await db.put({ ...current, ...patch })
 }
 
 export function syncWith(remoteUrl: string) {
