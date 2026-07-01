@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('ytdlp', {
     ipcRenderer.invoke('ytdlp:info', videoId),
   search: (query: string, limit?: number) =>
     ipcRenderer.invoke('ytdlp:search', query, limit ?? 10),
+  getChannelInfo: (channelId: string) =>
+    ipcRenderer.invoke('ytdlp:channelInfo', channelId),
 })
 
 contextBridge.exposeInMainWorld('ytjs', {
@@ -16,4 +18,6 @@ contextBridge.exposeInMainWorld('ytjs', {
     ipcRenderer.invoke('ytjs:info', videoId),
   search: (query: string, limit?: number) =>
     ipcRenderer.invoke('ytjs:search', query, limit ?? 10),
+  getChannelInfo: (channelId: string) =>
+    ipcRenderer.invoke('ytjs:channelInfo', channelId),
 })

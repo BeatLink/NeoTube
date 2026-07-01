@@ -1,10 +1,19 @@
 import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, StreamUrl } from '../types'
 
+interface YtjsRawChannelInfo {
+  channel_id: string
+  name: string
+  avatar: string
+  description: string
+  subscriber_count_text?: string
+}
+
 declare global {
   interface Window {
     ytjs?: {
       getInfo(videoId: string): Promise<YtjsRawInfo>
       search(query: string, limit?: number): Promise<YtjsRawResult[]>
+      getChannelInfo(channelId: string): Promise<YtjsRawChannelInfo>
     }
   }
 }
@@ -106,7 +115,27 @@ export class YoutubeJsPlugin implements VideoPlugin {
     }))
   }
 
-  async getChannelInfo(_channelId: string): Promise<ChannelInfo> {
-    throw new Error('getChannelInfo not yet implemented for youtube.js IPC plugin')
+  async getChannelInfo(channelId: string): Promise<ChannelInfo> {
+    if (!window.ytjs) throw new Error('youtube.js IPC bridge not available')
+    const raw = await window.ytjs.getChannelInfo(channelId)
+    // subscriber_count_text looks like "1.2M subscribers" or "1,234,567 subscribers"
+    let subscriberCount: number | undefined
+    if (raw.subscriber_count_text) {
+      const num = parseFloat(raw.subscriber_count_text.replace(/,/g, ''))
+      if (!isNaN(num)) {
+        const lower = raw.subscriber_count_text.toLowerCase()
+        if (lower.includes('k')) subscriberCount = Math.round(num * 1_000)
+        else if (lower.includes('m')) subscriberCount = Math.round(num * 1_000_000)
+        else if (lower.includes('b')) subscriberCount = Math.round(num * 1_000_000_000)
+        else subscriberCount = Math.round(num)
+      }
+    }
+    return {
+      channelId: raw.channel_id ?? channelId,
+      name: raw.name,
+      avatar: raw.avatar,
+      description: raw.description,
+      subscriberCount,
+    }
   }
 }

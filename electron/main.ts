@@ -34,6 +34,20 @@ function registerYtdlpHandlers() {
     const raw = await runYtdlp(['--flat-playlist', '--dump-json', '--no-playlist', `ytsearch${limit}:${query}`])
     return raw.trim().split('\n').filter(Boolean).map((l: string) => JSON.parse(l))
   })
+
+  ipcMain.handle('ytdlp:channelInfo', async (_event, channelId: string) => {
+    // Fetch one flat entry from the channel to extract channel name / ID.
+    // yt-dlp does not expose subscriber count or channel avatar via this path.
+    const url = `https://www.youtube.com/channel/${channelId}`
+    const raw = await runYtdlp(['--flat-playlist', '--dump-json', '--playlist-items', '1', url])
+    const entry = JSON.parse(raw.trim().split('\n')[0])
+    return {
+      channel_id: entry.channel_id ?? channelId,
+      name: entry.channel ?? entry.uploader ?? '',
+      avatar: '',
+      description: '',
+    }
+  })
 }
 
 // ─── youtube.js (Innertube) ───────────────────────────────────────────────────
@@ -107,6 +121,28 @@ function registerYoutubeJsHandlers() {
       thumbnail: v.thumbnails?.[v.thumbnails.length - 1]?.url,
       length_text: v.length_text?.text,
     }))
+  })
+
+  ipcMain.handle('ytjs:channelInfo', async (_event, channelId: string) => {
+    const yt = await getInnertubeClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const channel = await yt.getChannel(channelId) as any
+    const meta = channel?.metadata ?? {}
+    const header = channel?.header ?? {}
+    const name = header?.title?.text ?? meta?.title ?? ''
+    const avatars: Array<{ url: string; width?: number }> =
+      header?.avatar?.image?.sources ?? meta?.thumbnail ?? []
+    const avatar = avatars.length > 0
+      ? avatars.sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0].url
+      : ''
+    const subText: string = header?.subscribers?.subscriber_count?.text ?? ''
+    return {
+      channel_id: channelId,
+      name,
+      avatar,
+      description: meta?.description ?? '',
+      subscriber_count_text: subText,
+    }
   })
 }
 

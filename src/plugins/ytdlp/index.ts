@@ -1,10 +1,18 @@
 import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, StreamUrl } from '../types'
 import type { YtdlpRawInfo, YtdlpFormat } from './types'
 
+interface YtdlpRawChannelInfo {
+  channel_id: string
+  name: string
+  avatar: string
+  description: string
+}
+
 // Window shape injected by the Electron preload
 interface YtdlpBridge {
   getInfo: (videoId: string) => Promise<YtdlpRawInfo>
   search: (query: string, limit: number) => Promise<YtdlpRawInfo[]>
+  getChannelInfo: (channelId: string) => Promise<YtdlpRawChannelInfo>
 }
 
 declare global {
@@ -106,11 +114,11 @@ export class YtdlpPlugin implements VideoPlugin {
   }
 
   async getChannelInfo(channelId: string): Promise<ChannelInfo> {
-    const raw = await this.bridge.getInfo(channelId)
+    const raw = await this.bridge.getChannelInfo(channelId)
     return {
-      channelId: raw.channel_id ?? raw.uploader_id ?? channelId,
-      name: raw.channel ?? raw.uploader ?? '',
-      avatar: bestThumbnail(raw),
+      channelId: raw.channel_id ?? channelId,
+      name: raw.name,
+      avatar: raw.avatar,
       description: raw.description,
     }
   }
