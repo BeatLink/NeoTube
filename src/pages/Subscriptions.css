@@ -13,8 +13,46 @@
 
 .feed-heading { margin: 0; }
 
+.feed-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Sort pill group */
+.feed-sort {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.feed-sort-btn {
+  padding: 6px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.feed-sort-btn:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+.feed-sort-btn:hover { background: var(--surface-hover); color: var(--text); }
+
+.feed-sort-btn.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* Unwatched toggle */
 .feed-toggle {
-  padding: 7px 16px;
+  padding: 6px 16px;
   border-radius: 20px;
   border: 1px solid var(--border);
   background: transparent;
@@ -25,10 +63,7 @@
   white-space: nowrap;
 }
 
-.feed-toggle:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
+.feed-toggle:hover { background: var(--surface-hover); color: var(--text); }
 
 .feed-toggle-active {
   border-color: var(--accent);
@@ -36,10 +71,7 @@
   color: var(--accent);
 }
 
-.feed-toggle-active:hover {
-  background: var(--accent-bg);
-  color: var(--accent);
-}
+.feed-toggle-active:hover { background: var(--accent-bg); color: var(--accent); }
 
 .feed-status,
 .feed-empty {
@@ -160,3 +192,13 @@
 }
 
 .feed-card-title:hover { text-decoration: underline; }
+
+.feed-card-channel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.feed-card-channel:hover { color: var(--text); text-decoration: underline; }
+
+.feed-grid-flat { margin-top: 8px; }

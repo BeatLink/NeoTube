@@ -126,10 +126,18 @@
   border-color: var(--accent);
 }
 
-/* ── Unwatched toggle ─────────────────────────────────────────────────────── */
+/* ── Controls row (toggle + search) ──────────────────────────────────────── */
+
+.subs-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
 
 .subs-toggle {
-  padding: 7px 16px;
+  padding: 6px 16px;
   border-radius: 20px;
   border: 1px solid var(--border);
   background: transparent;
@@ -141,18 +149,10 @@
   flex-shrink: 0;
 }
 
-.subs-toggle:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
+.subs-toggle:hover { background: var(--surface-hover); color: var(--text); }
 
-.subs-toggle-active {
+.subs-toggle.active {
   border-color: var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent);
-}
-
-.subs-toggle-active:hover {
   background: var(--accent-bg);
   color: var(--accent);
 }

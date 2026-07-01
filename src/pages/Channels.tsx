@@ -46,9 +46,9 @@ export default function Channels() {
       <div className="subs-header">
         <h1 className="subs-heading">Channels</h1>
         {subs.length > 0 && (
-          <>
+          <div className="subs-controls">
             <button
-              className={`subs-toggle${hideWatched ? ' subs-toggle-active' : ''}`}
+              className={`subs-toggle${hideWatched ? ' active' : ''}`}
               onClick={() => setHideWatched(h => !h)}
               aria-pressed={hideWatched}
             >
@@ -62,7 +62,7 @@ export default function Channels() {
               onChange={e => setFilter(e.target.value)}
               aria-label="Filter channels"
             />
-          </>
+          </div>
         )}
       </div>
 

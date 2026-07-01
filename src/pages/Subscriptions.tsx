@@ -11,6 +11,8 @@ type Section =
   | { channel: Subscription; status: 'done'; videos: SearchResult[] }
   | { channel: Subscription; status: 'error' }
 
+type SortMode = 'channel' | 'date'
+
 function formatDuration(seconds: number): string {
   if (!seconds) return ''
   const h = Math.floor(seconds / 3600)
@@ -29,6 +31,7 @@ export default function Subscriptions() {
   const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
   const [watchedStyle, setWatchedStyle] = useState<'normal' | 'dim' | 'hide'>('normal')
   const [hideWatched, setHideWatched] = useState(false)
+  const [sortMode, setSortMode] = useState<SortMode>('channel')
 
   useEffect(() => {
     Promise.all([getSettings(), getWatchedVideoIds()])
@@ -86,19 +89,93 @@ export default function Subscriptions() {
 
   const shouldHide = hideWatched || watchedStyle === 'hide'
 
+  // ── Date sort: flat list of all videos from completed sections ──────────────
+  const doneSections = sections.filter((s): s is Extract<Section, { status: 'done' }> => s.status === 'done')
+  const loadingCount = sections.filter(s => s.status === 'loading').length
+
+  const allVideos = sortMode === 'date'
+    ? doneSections
+        .flatMap(s => s.videos.map(v => ({ ...v, channel: s.channel })))
+        .filter(v => !shouldHide || !watchedIds.has(v.videoId))
+        .sort((a, b) => {
+          if (!a.publishedAt && !b.publishedAt) return 0
+          if (!a.publishedAt) return 1
+          if (!b.publishedAt) return -1
+          return b.publishedAt.localeCompare(a.publishedAt)
+        })
+    : []
+
   return (
     <div className="feed-page">
       <div className="feed-header">
         <h1 className="feed-heading">Subscriptions</h1>
-        <button
-          className={`feed-toggle${hideWatched ? ' feed-toggle-active' : ''}`}
-          onClick={() => setHideWatched(h => !h)}
-          aria-pressed={hideWatched}
-        >
-          Unwatched only
-        </button>
+        <div className="feed-controls">
+          <div className="feed-sort">
+            {(['channel', 'date'] as const).map(mode => (
+              <button
+                key={mode}
+                className={`feed-sort-btn${sortMode === mode ? ' active' : ''}`}
+                onClick={() => setSortMode(mode)}
+                aria-pressed={sortMode === mode}
+              >
+                {mode === 'channel' ? 'By channel' : 'By date'}
+              </button>
+            ))}
+          </div>
+          <button
+            className={`feed-toggle${hideWatched ? ' feed-toggle-active' : ''}`}
+            onClick={() => setHideWatched(h => !h)}
+            aria-pressed={hideWatched}
+          >
+            Unwatched only
+          </button>
+        </div>
       </div>
-      {sections.map(section => {
+
+      {/* ── By date: flat sorted grid ─────────────────────────────────────────── */}
+      {sortMode === 'date' && (
+        <>
+          {loadingCount > 0 && (
+            <p className="feed-status">
+              Loading {loadingCount} of {sections.length} channel{sections.length !== 1 ? 's' : ''}…
+            </p>
+          )}
+          {allVideos.length === 0 && loadingCount === 0 ? (
+            <p className="feed-empty">No videos found.</p>
+          ) : (
+            <ul className="feed-grid feed-grid-flat">
+              {allVideos.map(v => {
+                const isWatched = watchedIds.has(v.videoId)
+                return (
+                  <li
+                    key={v.videoId}
+                    className={`feed-card${isWatched && !shouldHide && watchedStyle === 'dim' ? ' feed-card-dim' : ''}`}
+                  >
+                    <Link to={`/watch/${v.videoId}`} className="feed-card-thumb-link">
+                      <div className="feed-card-thumb">
+                        {v.thumbnail
+                          ? <img src={v.thumbnail} alt="" loading="lazy" />
+                          : <div className="feed-card-thumb-blank" />
+                        }
+                        {v.duration > 0 && (
+                          <span className="feed-card-duration">{formatDuration(v.duration)}</span>
+                        )}
+                      </div>
+                    </Link>
+                    <Link to={`/watch/${v.videoId}`} className="feed-card-title">{v.title}</Link>
+                    <Link to={`/channel/${v.channel.channelId}`} className="feed-card-channel">
+                      {v.channel.channelName}
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </>
+      )}
+
+      {/* ── By channel: per-section layout ───────────────────────────────────── */}
+      {sortMode === 'channel' && sections.map(section => {
         if (section.status === 'done' && !section.videos.length) return null
 
         const videos = section.status === 'done'
@@ -147,9 +224,7 @@ export default function Subscriptions() {
                           )}
                         </div>
                       </Link>
-                      <Link to={`/watch/${v.videoId}`} className="feed-card-title">
-                        {v.title}
-                      </Link>
+                      <Link to={`/watch/${v.videoId}`} className="feed-card-title">{v.title}</Link>
                     </li>
                   )
                 })}
