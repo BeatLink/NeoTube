@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSubscriptions, getSettings, getWatchedVideoIds } from '../db/index'
+import { getSubscriptions, getSettings, saveSettings, getWatchedVideoIds, getAllCachedChannelVideos, setCachedChannelVideos } from '../db/index'
 import { pluginManager } from '../plugins/manager'
+import { downloadVideosWithThumbnailBlobs } from '../utils/avatar'
 import type { Subscription } from '../types'
 import type { SearchResult } from '../plugins/types'
 import './Subscriptions.css'
@@ -35,7 +36,12 @@ export default function Subscriptions() {
 
   useEffect(() => {
     Promise.all([getSettings(), getWatchedVideoIds()])
-      .then(([s, ids]) => { setWatchedStyle(s.watchedVideoStyle ?? 'normal'); setWatchedIds(ids) })
+      .then(([s, ids]) => {
+        setWatchedStyle(s.watchedVideoStyle ?? 'normal')
+        setHideWatched(s.feedHideWatched ?? false)
+        setSortMode(s.feedSortMode ?? 'channel')
+        setWatchedIds(ids)
+      })
       .catch(() => {})
 
     const refresh = () =>
@@ -49,11 +55,17 @@ export default function Subscriptions() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const subs = await getSubscriptions()
+      const [subs, allCaches] = await Promise.all([getSubscriptions(), getAllCachedChannelVideos()])
       if (cancelled) return
       if (!subs.length) { setInitialising(false); return }
 
-      setSections(subs.map(channel => ({ channel, status: 'loading' })))
+      // Seed sections from cache for instant display; fall back to loading state
+      setSections(subs.map(channel => {
+        const cached = allCaches.get(channel.channelId)
+        return cached
+          ? { channel, status: 'done' as const, videos: cached as SearchResult[] }
+          : { channel, status: 'loading' as const }
+      }))
       setInitialising(false)
 
       let plugin
@@ -68,6 +80,10 @@ export default function Subscriptions() {
             if (!cancelled) setSections(prev => prev.map(s =>
               s.channel.channelId === sub.channelId ? { channel: sub, status: 'done', videos } : s
             ))
+            // Download thumbnail blobs in background, then update cache
+            downloadVideosWithThumbnailBlobs(videos)
+              .then(withBlobs => setCachedChannelVideos(sub.channelId, withBlobs))
+              .catch(() => {})
           } catch {
             if (!cancelled) setSections(prev => prev.map(s =>
               s.channel.channelId === sub.channelId ? { channel: sub, status: 'error' } : s
@@ -115,7 +131,7 @@ export default function Subscriptions() {
               <button
                 key={mode}
                 className={`feed-sort-btn${sortMode === mode ? ' active' : ''}`}
-                onClick={() => setSortMode(mode)}
+                onClick={() => { setSortMode(mode); saveSettings({ feedSortMode: mode }).catch(() => {}) }}
                 aria-pressed={sortMode === mode}
               >
                 {mode === 'channel' ? 'By channel' : 'By date'}
@@ -124,7 +140,7 @@ export default function Subscriptions() {
           </div>
           <button
             className={`feed-toggle${hideWatched ? ' feed-toggle-active' : ''}`}
-            onClick={() => setHideWatched(h => !h)}
+            onClick={() => { const next = !hideWatched; setHideWatched(next); saveSettings({ feedHideWatched: next }).catch(() => {}) }}
             aria-pressed={hideWatched}
           >
             Unwatched only

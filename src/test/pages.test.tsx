@@ -76,7 +76,7 @@ vi.mock('../plugins/manager', () => {
 
 // Inline vi.fn() — must not reference outer variables (vi.mock is hoisted)
 vi.mock('../db/index', () => ({
-  getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true, watchedVideoStyle: 'normal' }),
+  getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true, watchedVideoStyle: 'normal', feedSortMode: 'channel', feedHideWatched: false, channelsHideWatched: false, channelPageHideWatched: false }),
   saveSettings: vi.fn().mockResolvedValue(undefined),
   isSubscribed: vi.fn().mockResolvedValue(false),
   subscribe: vi.fn().mockResolvedValue(undefined),
@@ -87,6 +87,9 @@ vi.mock('../db/index', () => ({
   getWatchedVideoIds: vi.fn().mockResolvedValue(new Set()),
   removeFromHistory: vi.fn().mockResolvedValue(undefined),
   clearHistory: vi.fn().mockResolvedValue(undefined),
+  getCachedChannelVideos: vi.fn().mockResolvedValue(null),
+  setCachedChannelVideos: vi.fn().mockResolvedValue(undefined),
+  getAllCachedChannelVideos: vi.fn().mockResolvedValue(new Map()),
 }))
 
 // Typed references to the mocked functions

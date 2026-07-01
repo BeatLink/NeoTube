@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSubscriptions, unsubscribe, getHistory } from '../db/index'
+import { getSubscriptions, unsubscribe, getHistory, getSettings, saveSettings } from '../db/index'
 import type { Subscription } from '../types'
 import './Channels.css'
 
@@ -12,10 +12,11 @@ export default function Channels() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([getSubscriptions(), getHistory()])
-      .then(([s, history]) => {
+    Promise.all([getSubscriptions(), getHistory(), getSettings()])
+      .then(([s, history, settings]) => {
         setSubs(s)
         setWatchedChannelIds(new Set(history.map(e => e.channelId).filter(Boolean)))
+        setHideWatched(settings.channelsHideWatched ?? false)
       })
       .finally(() => setLoading(false))
 
@@ -49,7 +50,7 @@ export default function Channels() {
           <div className="subs-controls">
             <button
               className={`subs-toggle${hideWatched ? ' active' : ''}`}
-              onClick={() => setHideWatched(h => !h)}
+              onClick={() => { const next = !hideWatched; setHideWatched(next); saveSettings({ channelsHideWatched: next }).catch(() => {}) }}
               aria-pressed={hideWatched}
             >
               Unwatched only

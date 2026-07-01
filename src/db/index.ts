@@ -1,7 +1,7 @@
 // pouchdb-browser uses IndexedDB — the correct adapter for all browser/Electron targets.
 // Tests import pouchdb directly with the memory adapter (see src/test/db.test.ts).
 import PouchDB from 'pouchdb-browser'
-import type { UserSettings, Subscription, WatchHistoryEntry } from '../types'
+import type { UserSettings, Subscription, WatchHistoryEntry, CachedVideo, ChannelVideoCache } from '../types'
 
 // Lazy singleton — deferred until first use so tests that mock this module
 // never trigger the IndexedDB constructor in jsdom.
@@ -21,6 +21,10 @@ const DEFAULT_SETTINGS: UserSettings = {
   defaultQuality: 'best',
   privacyMode: true,
   watchedVideoStyle: 'normal',
+  feedSortMode: 'channel',
+  feedHideWatched: false,
+  channelsHideWatched: false,
+  channelPageHideWatched: false,
 }
 
 export async function getSettings(): Promise<UserSettings> {
@@ -165,6 +169,48 @@ export async function clearHistory(): Promise<void> {
   const result = await db().allDocs({ startkey: 'history-', endkey: 'history-￿' })
   await Promise.all(result.rows.map(r => db().remove(r.id as string, r.value.rev)))
   emitHistoryChanged()
+}
+
+// ─── Channel Video Cache ──────────────────────────────────────────────────────
+// Stale-while-revalidate: pages read cache on mount for instant display,
+// then write fresh data back after network fetch completes.
+
+function cacheId(channelId: string): string { return `channelcache-${channelId}` }
+
+export async function getCachedChannelVideos(channelId: string): Promise<CachedVideo[] | null> {
+  try {
+    const doc = await db().get<ChannelVideoCache>(cacheId(channelId))
+    return doc.videos
+  } catch {
+    return null
+  }
+}
+
+export async function setCachedChannelVideos(channelId: string, videos: CachedVideo[]): Promise<void> {
+  const id = cacheId(channelId)
+  let existing: ChannelVideoCache | undefined
+  try { existing = await db().get<ChannelVideoCache>(id) } catch { /* new */ }
+  await db().put<ChannelVideoCache>({
+    _id: id,
+    ...(existing?._rev ? { _rev: existing._rev } : {}),
+    type: 'channelcache',
+    channelId,
+    videos,
+    fetchedAt: new Date().toISOString(),
+  })
+}
+
+export async function getAllCachedChannelVideos(): Promise<Map<string, CachedVideo[]>> {
+  const result = await db().allDocs<ChannelVideoCache>({
+    include_docs: true,
+    startkey: 'channelcache-',
+    endkey: 'channelcache-￿',
+  })
+  const map = new Map<string, CachedVideo[]>()
+  for (const row of result.rows) {
+    if (row.doc) map.set(row.doc.channelId, row.doc.videos)
+  }
+  return map
 }
 
 // ─── P2P Sync ─────────────────────────────────────────────────────────────────

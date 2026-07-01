@@ -20,3 +20,18 @@ export async function downloadAvatar(url: string): Promise<string | null> {
     return null
   }
 }
+
+// Downloads thumbnail URLs for an array of video objects and replaces them
+// with base64 data URIs. Already-cached blobs (data: URIs) are left unchanged.
+// Falls back to the original URL if the download fails.
+export async function downloadVideosWithThumbnailBlobs<T extends { thumbnail: string }>(
+  videos: T[],
+): Promise<T[]> {
+  return Promise.all(
+    videos.map(async v => {
+      if (!v.thumbnail || v.thumbnail.startsWith('data:')) return v
+      const blob = await downloadAvatar(v.thumbnail)
+      return blob ? { ...v, thumbnail: blob } : v
+    }),
+  )
+}

@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react'
 import App from '../App'
 
 vi.mock('../db/index', () => ({
-  getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true, watchedVideoStyle: 'normal' }),
+  getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true, watchedVideoStyle: 'normal', feedSortMode: 'channel', feedHideWatched: false, channelsHideWatched: false, channelPageHideWatched: false }),
   saveSettings: vi.fn().mockResolvedValue(undefined),
   getSubscriptions: vi.fn().mockResolvedValue([]),
   subscribe: vi.fn().mockResolvedValue(undefined),
@@ -12,6 +12,9 @@ vi.mock('../db/index', () => ({
   getWatchedVideoIds: vi.fn().mockResolvedValue(new Set()),
   removeFromHistory: vi.fn().mockResolvedValue(undefined),
   clearHistory: vi.fn().mockResolvedValue(undefined),
+  getCachedChannelVideos: vi.fn().mockResolvedValue(null),
+  setCachedChannelVideos: vi.fn().mockResolvedValue(undefined),
+  getAllCachedChannelVideos: vi.fn().mockResolvedValue(new Map()),
 }))
 
 describe('App', () => {

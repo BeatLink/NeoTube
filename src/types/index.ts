@@ -48,6 +48,26 @@ export interface WatchHistoryEntry {
   watchCount: number
 }
 
+export interface CachedVideo {
+  videoId: string
+  title: string
+  channelId: string
+  channelName: string
+  thumbnail: string
+  duration: number
+  viewCount?: number
+  publishedAt?: string
+}
+
+export interface ChannelVideoCache {
+  _id: string
+  _rev?: string
+  type: 'channelcache'
+  channelId: string
+  videos: CachedVideo[]
+  fetchedAt: string
+}
+
 export interface UserSettings {
   _id: 'settings'
   _rev?: string
@@ -57,4 +77,8 @@ export interface UserSettings {
   defaultQuality: '144p' | '360p' | '720p' | '1080p' | 'best'
   privacyMode: boolean
   watchedVideoStyle: 'normal' | 'dim' | 'hide'
+  feedSortMode: 'channel' | 'date'
+  feedHideWatched: boolean
+  channelsHideWatched: boolean
+  channelPageHideWatched: boolean
 }

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { pluginManager } from '../plugins/manager'
 import type { ChannelInfo, SearchResult, ChannelPlaylist } from '../plugins/types'
-import { isSubscribed, subscribe, unsubscribe, getSettings, getWatchedVideoIds } from '../db/index'
-import { downloadAvatar } from '../utils/avatar'
+import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWatchedVideoIds, getCachedChannelVideos, setCachedChannelVideos } from '../db/index'
+import { downloadAvatar, downloadVideosWithThumbnailBlobs } from '../utils/avatar'
 import './Channel.css'
 
 type Tab = 'videos' | 'playlists'
@@ -35,6 +35,7 @@ export default function Channel() {
     Promise.all([getSettings(), getWatchedVideoIds()])
       .then(([settings, ids]) => {
         setWatchedStyle(settings.watchedVideoStyle ?? 'normal')
+        setHideWatched(settings.channelPageHideWatched ?? false)
         setWatchedIds(ids)
       })
       .catch(() => {})
@@ -63,14 +64,16 @@ export default function Channel() {
     let cancelled = false
     const plugin = pluginManager.getActive()
 
-    Promise.all([
-      plugin.getChannelInfo(channelId),
-      plugin.getChannelVideos?.(channelId) ?? Promise.resolve([]),
-    ])
-      .then(([channelInfo, channelVideos]) => {
+    // Show cached videos immediately while fresh data loads
+    getCachedChannelVideos(channelId)
+      .then(cached => { if (cached && !cancelled) setVideos(cached) })
+      .catch(() => {})
+
+    // Channel info and fresh videos are independent fetches
+    plugin.getChannelInfo(channelId)
+      .then(channelInfo => {
         if (cancelled) return
         setInfo(channelInfo)
-        setVideos(channelVideos)
         setLoadingInfo(false)
         isSubscribed(channelId).then(async subbed => {
           setSubscribed(subbed)
@@ -83,6 +86,17 @@ export default function Channel() {
       .catch((err: Error) => {
         if (!cancelled) { setError(err.message); setLoadingInfo(false) }
       })
+
+    ;(plugin.getChannelVideos?.(channelId) ?? Promise.resolve([]))
+      .then(freshVideos => {
+        if (cancelled) return
+        setVideos(freshVideos)
+        // Download thumbnail blobs in background, then update cache
+        downloadVideosWithThumbnailBlobs(freshVideos)
+          .then(withBlobs => setCachedChannelVideos(channelId, withBlobs))
+          .catch(() => {})
+      })
+      .catch(() => { if (!cancelled) setVideos([]) })
 
     return () => { cancelled = true }
   }, [channelId])
@@ -160,7 +174,7 @@ export default function Channel() {
         {tab === 'videos' && (
           <button
             className={`channel-tab-toggle${hideWatched ? ' active' : ''}`}
-            onClick={() => setHideWatched(h => !h)}
+            onClick={() => { const next = !hideWatched; setHideWatched(next); saveSettings({ channelPageHideWatched: next }).catch(() => {}) }}
             aria-pressed={hideWatched}
           >
             Unwatched only
