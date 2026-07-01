@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { fileURLToPath } from 'url'
 import { spawn } from 'child_process'
+import { createContext, runInContext } from 'vm'
 import path from 'path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -42,7 +43,17 @@ let _innertubeClient: unknown = null
 
 async function getInnertubeClient() {
   if (!_innertubeClient) {
-    const { Innertube } = await import('youtubei.js')
+    const { Innertube, Platform } = await import('youtubei.js')
+    // The default Node.js shim ships with a no-op eval that throws.
+    // Override it with Node's vm module so signature/n-parameter deciphering works.
+    Platform.load({
+      ...Platform.shim,
+      eval: (data: { output: string }, env: Record<string, unknown>) => {
+        const ctx = createContext({ ...env })
+        runInContext(data.output, ctx)
+        return ctx as Record<string, unknown>
+      },
+    })
     _innertubeClient = await Innertube.create()
   }
   return _innertubeClient as Awaited<ReturnType<typeof import('youtubei.js').Innertube.create>>

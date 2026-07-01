@@ -32,9 +32,9 @@ export default function VideoPlayer({ streams, title }: Props) {
         className="video-element"
       />
       <div className="quality-selector">
-        {streams.filter(s => s.hasVideo).map(s => (
+        {streams.filter(s => s.hasVideo).map((s, i) => (
           <button
-            key={s.quality + s.format}
+            key={`${s.quality}-${s.format}-${i}`}
             className={`quality-btn ${selected === s ? 'active' : ''}`}
             onClick={() => setSelected(s)}
           >
