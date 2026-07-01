@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-electron/
+
+# Vite
+.vite/
+
+# TypeScript
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Capacitor native projects (generated — uncomment to exclude)
+# android/
+# ios/
+
+# Electron build artifacts
+out/
+release/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Nix
+result
+result-*
+.direnv/
