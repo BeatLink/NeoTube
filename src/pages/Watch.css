@@ -16,10 +16,42 @@
   font-weight: 600;
 }
 
+.watch-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 4px;
+}
+
 .watch-channel {
   color: var(--text-muted);
   font-size: 0.9rem;
-  margin-top: 2px;
+  text-decoration: none;
+}
+
+.watch-channel:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.watch-sub-btn {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: none;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.watch-sub-btn:hover { opacity: 0.8; }
+
+.watch-sub-btn.subscribed {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .watch-views {

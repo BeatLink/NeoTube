@@ -29,6 +29,8 @@ export interface Subscription {
   _rev?: string
   type: 'subscription'
   channelId: string
+  channelName: string
+  avatar?: string
   subscribedAt: string
 }
 
@@ -46,6 +48,7 @@ export interface UserSettings {
   _rev?: string
   type: 'settings'
   theme: 'light' | 'dark' | 'system'
+  activePlugin: string
   defaultQuality: '144p' | '360p' | '720p' | '1080p' | 'best'
   privacyMode: boolean
 }

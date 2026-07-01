@@ -54,7 +54,8 @@ NeoTube/
 │   │   ├── Home.tsx       # Landing page
 │   │   ├── Watch.tsx      # Video player page (route: /watch/:videoId)
 │   │   ├── Search.tsx     # Search results page (route: /search?q=...)
-│   │   ├── Subscriptions.tsx
+│   │   ├── Channel.tsx    # Channel page (route: /channel/:channelId)
+│   │   ├── Subscriptions.tsx  # Subscription list (route: /subscriptions)
 │   │   └── Settings.tsx   # Theme + plugin selection
 │   ├── plugins/           # Video backend plugin system
 │   │   ├── types.ts       # VideoPlugin interface + shared domain types
@@ -111,10 +112,13 @@ The topbar search input accepts:
 
 - Light / dark theme, persisted in PouchDB and cached in localStorage
 - Universal topbar search: YouTube URL → direct watch, search term → results page
-- Search results page with thumbnail, duration, channel, view count
+- Search results page with thumbnail, duration, channel name (linked), view count
 - Video playback via pluggable backend (yt-dlp or youtube.js on Desktop)
 - Quality selection from available streams
-- Watch page: title, channel, view count, collapsible description
+- Watch page: title, channel link, subscribe/subscribed button, view count, collapsible description
+- Channel page: avatar, name, subscriber count, description, subscribe button
+- Subscriptions page: list of subscribed channels with links and unsubscribe controls
+- Subscriptions stored in PouchDB (`sub-<channelId>` key prefix) — persist across sessions
 - Settings page: theme toggle, active plugin selector
 
 ---
@@ -174,12 +178,14 @@ _To be defined._
 
 ### Phase 4 — Search & Browse ✓
 - [x] Topbar search (all pages): URL → Watch, query → Search results
-- [x] Search results page with thumbnail, duration, channel name
-- [ ] Channel pages
+- [x] Search results page with thumbnail, duration, channel name (linked to channel page)
+- [x] Channel page (`/channel/:channelId`) with avatar, subscriber count, subscribe button
 - [ ] Thumbnail lazy loading
 
-### Phase 5 — Subscriptions & Sync
-- [ ] Subscribe / unsubscribe to channels
+### Phase 5 — Subscriptions & Sync ✓ (partial)
+- [x] Subscribe / unsubscribe to channels (Watch page + Channel page)
+- [x] Subscriptions stored in PouchDB (`sub-<channelId>` prefix, includes channelName + avatar)
+- [x] Subscriptions page listing subscribed channels with unsubscribe controls
 - [ ] Subscription feed (latest videos from subscribed channels)
 - [ ] Watch history (stored in PouchDB)
 - [ ] Playback progress persistence

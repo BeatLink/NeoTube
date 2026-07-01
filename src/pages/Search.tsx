@@ -63,25 +63,25 @@ export default function Search() {
       <h2 className="search-heading">Results for "{query}"</h2>
       <ul className="search-results">
         {state.results.map(r => (
-          <li key={r.videoId}>
-            <Link to={`/watch/${r.videoId}`} className="result-card">
-              <div className="result-thumb-wrap">
-                {r.thumbnail
-                  ? <img className="result-thumb" src={r.thumbnail} alt="" loading="lazy" />
-                  : <div className="result-thumb result-thumb-blank" />
-                }
-                {r.duration > 0 && (
-                  <span className="result-duration">{formatDuration(r.duration)}</span>
-                )}
-              </div>
-              <div className="result-info">
-                <p className="result-title">{r.title}</p>
-                <p className="result-channel">{r.channelName}</p>
-                {r.viewCount !== undefined && (
-                  <p className="result-views">{r.viewCount.toLocaleString()} views</p>
-                )}
-              </div>
+          <li key={r.videoId} className="result-card">
+            <Link to={`/watch/${r.videoId}`} className="result-thumb-wrap">
+              {r.thumbnail
+                ? <img className="result-thumb" src={r.thumbnail} alt="" loading="lazy" />
+                : <div className="result-thumb result-thumb-blank" />
+              }
+              {r.duration > 0 && (
+                <span className="result-duration">{formatDuration(r.duration)}</span>
+              )}
             </Link>
+            <div className="result-info">
+              <Link to={`/watch/${r.videoId}`} className="result-title">{r.title}</Link>
+              <Link to={`/channel/${r.channelId}`} className="result-channel">
+                {r.channelName}
+              </Link>
+              {r.viewCount !== undefined && (
+                <p className="result-views">{r.viewCount.toLocaleString()} views</p>
+              )}
+            </div>
           </li>
         ))}
       </ul>

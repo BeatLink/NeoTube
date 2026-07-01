@@ -1,25 +1,27 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import PouchDB from 'pouchdb'
 // @ts-expect-error — no type declaration for pouchdb-adapter-memory
 import MemoryAdapter from 'pouchdb-adapter-memory'
-import type { UserSettings } from '../types'
+import type { UserSettings, Subscription } from '../types'
 
 PouchDB.plugin(MemoryAdapter)
 
-// Isolate each test with a fresh in-memory db
 function makeTestDb() {
-  return new PouchDB<UserSettings>(`test-${Math.random()}`, { adapter: 'memory' })
+  return new PouchDB(`test-${Math.random()}`, { adapter: 'memory' })
 }
+
+// ─── Settings helpers (mirror src/db/index.ts logic) ─────────────────────────
 
 const DEFAULT: UserSettings = {
   _id: 'settings',
   type: 'settings',
   theme: 'system',
+  activePlugin: 'youtubejs',
   defaultQuality: 'best',
   privacyMode: true,
 }
 
-async function getSettings(db: PouchDB.Database<UserSettings>): Promise<UserSettings> {
+async function getSettings(db: PouchDB.Database): Promise<UserSettings> {
   try {
     return await db.get<UserSettings>('settings')
   } catch {
@@ -28,43 +30,134 @@ async function getSettings(db: PouchDB.Database<UserSettings>): Promise<UserSett
   }
 }
 
-async function saveSettings(db: PouchDB.Database<UserSettings>, patch: Partial<UserSettings>): Promise<void> {
+async function saveSettings(db: PouchDB.Database, patch: Partial<UserSettings>): Promise<void> {
   const current = await getSettings(db)
   await db.put({ ...current, ...patch })
 }
 
-describe('settings db', () => {
-  let db: PouchDB.Database<UserSettings>
+// ─── Subscription helpers (mirror src/db/index.ts logic) ─────────────────────
 
-  beforeEach(() => {
-    db = makeTestDb()
+function subId(channelId: string) { return `sub-${channelId}` }
+
+async function getSubscriptions(db: PouchDB.Database): Promise<Subscription[]> {
+  const result = await db.allDocs<Subscription>({
+    include_docs: true,
+    startkey: 'sub-',
+    endkey: 'sub-￿',
   })
+  return result.rows.map(r => r.doc!).filter(Boolean)
+}
+
+async function isSubscribed(db: PouchDB.Database, channelId: string): Promise<boolean> {
+  try { await db.get(subId(channelId)); return true } catch { return false }
+}
+
+async function subscribe(db: PouchDB.Database, channelId: string, channelName: string): Promise<void> {
+  const id = subId(channelId)
+  let existing: Subscription | undefined
+  try { existing = await db.get<Subscription>(id) } catch { /* new */ }
+  await db.put({
+    _id: id,
+    ...(existing?._rev ? { _rev: existing._rev } : {}),
+    type: 'subscription',
+    channelId,
+    channelName,
+    subscribedAt: existing?.subscribedAt ?? new Date().toISOString(),
+  })
+}
+
+async function unsubscribe(db: PouchDB.Database, channelId: string): Promise<void> {
+  try { const doc = await db.get(subId(channelId)); await db.remove(doc) } catch { /* already gone */ }
+}
+
+// ─── Settings tests ───────────────────────────────────────────────────────────
+
+describe('settings db', () => {
+  let db: PouchDB.Database
+
+  beforeEach(() => { db = makeTestDb() })
 
   it('returns default settings on first read', async () => {
-    const settings = await getSettings(db)
-    expect(settings.theme).toBe('system')
-    expect(settings.privacyMode).toBe(true)
+    const s = await getSettings(db)
+    expect(s.theme).toBe('system')
+    expect(s.privacyMode).toBe(true)
   })
 
   it('saves and retrieves theme preference', async () => {
     await saveSettings(db, { theme: 'dark' })
-    const settings = await getSettings(db)
-    expect(settings.theme).toBe('dark')
+    expect((await getSettings(db)).theme).toBe('dark')
   })
 
   it('partial save does not overwrite unrelated fields', async () => {
     await saveSettings(db, { theme: 'dark' })
     await saveSettings(db, { defaultQuality: '720p' })
-    const settings = await getSettings(db)
-    expect(settings.theme).toBe('dark')
-    expect(settings.defaultQuality).toBe('720p')
-    expect(settings.privacyMode).toBe(true)
+    const s = await getSettings(db)
+    expect(s.theme).toBe('dark')
+    expect(s.defaultQuality).toBe('720p')
+    expect(s.privacyMode).toBe(true)
   })
 
   it('save is idempotent — updates existing doc without conflict', async () => {
     await saveSettings(db, { theme: 'light' })
     await saveSettings(db, { theme: 'dark' })
-    const settings = await getSettings(db)
-    expect(settings.theme).toBe('dark')
+    expect((await getSettings(db)).theme).toBe('dark')
+  })
+})
+
+// ─── Subscription tests ───────────────────────────────────────────────────────
+
+describe('subscriptions db', () => {
+  let db: PouchDB.Database
+
+  beforeEach(() => { db = makeTestDb() })
+
+  it('returns empty list when no subscriptions', async () => {
+    expect(await getSubscriptions(db)).toEqual([])
+  })
+
+  it('isSubscribed returns false for unknown channel', async () => {
+    expect(await isSubscribed(db, 'UCxxx')).toBe(false)
+  })
+
+  it('subscribe stores the channel', async () => {
+    await subscribe(db, 'UCabc', 'Test Channel')
+    const subs = await getSubscriptions(db)
+    expect(subs).toHaveLength(1)
+    expect(subs[0].channelId).toBe('UCabc')
+    expect(subs[0].channelName).toBe('Test Channel')
+  })
+
+  it('isSubscribed returns true after subscribing', async () => {
+    await subscribe(db, 'UCabc', 'Test Channel')
+    expect(await isSubscribed(db, 'UCabc')).toBe(true)
+  })
+
+  it('subscribe twice does not create duplicate (idempotent)', async () => {
+    await subscribe(db, 'UCabc', 'Test Channel')
+    await subscribe(db, 'UCabc', 'Test Channel Updated')
+    const subs = await getSubscriptions(db)
+    expect(subs).toHaveLength(1)
+    expect(subs[0].channelName).toBe('Test Channel Updated')
+  })
+
+  it('unsubscribe removes the channel', async () => {
+    await subscribe(db, 'UCabc', 'Test Channel')
+    await unsubscribe(db, 'UCabc')
+    expect(await getSubscriptions(db)).toHaveLength(0)
+    expect(await isSubscribed(db, 'UCabc')).toBe(false)
+  })
+
+  it('unsubscribe on non-existent channel does not throw', async () => {
+    await expect(unsubscribe(db, 'UCnope')).resolves.not.toThrow()
+  })
+
+  it('can manage multiple subscriptions independently', async () => {
+    await subscribe(db, 'UC1', 'Channel One')
+    await subscribe(db, 'UC2', 'Channel Two')
+    await subscribe(db, 'UC3', 'Channel Three')
+    await unsubscribe(db, 'UC2')
+    const subs = await getSubscriptions(db)
+    expect(subs).toHaveLength(2)
+    expect(subs.map(s => s.channelId)).not.toContain('UC2')
   })
 })

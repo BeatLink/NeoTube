@@ -1,0 +1,96 @@
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  max-width: 540px;
+}
+
+.settings-page h2 {
+  font-size: 1.3rem;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-section-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.settings-options {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-options.vertical {
+  flex-direction: column;
+}
+
+.settings-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+
+.settings-option:hover {
+  background: var(--surface-hover);
+}
+
+.settings-option.active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.settings-option input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+/* Plugin options — stacked with name + description */
+.plugin-option {
+  align-items: flex-start;
+  flex-direction: row;
+  gap: 12px;
+}
+
+.plugin-option input[type="radio"] {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.plugin-option .plugin-name {
+  font-weight: 600;
+  display: block;
+}
+
+.plugin-option .plugin-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 2px;
+}
+
+.plugin-option.active .plugin-desc {
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+.plugin-option > div {
+  display: flex;
+  flex-direction: column;
+}
