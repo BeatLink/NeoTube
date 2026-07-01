@@ -29,6 +29,7 @@ export default function Channel() {
   const [subscribed, setSubscribed] = useState(false)
   const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
   const [watchedStyle, setWatchedStyle] = useState<'normal' | 'dim' | 'hide'>('normal')
+  const [hideWatched, setHideWatched] = useState(false)
 
   useEffect(() => {
     Promise.all([getSettings(), getWatchedVideoIds()])
@@ -156,6 +157,15 @@ export default function Channel() {
         >
           Playlists
         </button>
+        {tab === 'videos' && (
+          <button
+            className={`channel-tab-toggle${hideWatched ? ' active' : ''}`}
+            onClick={() => setHideWatched(h => !h)}
+            aria-pressed={hideWatched}
+          >
+            Unwatched only
+          </button>
+        )}
       </div>
 
       {/* ── Videos tab ─────────────────────────────────────────────────────── */}
@@ -165,14 +175,15 @@ export default function Channel() {
           : videos.length === 0
             ? <p className="channel-tab-status">No videos found.</p>
             : (() => {
-                const visibleVideos = watchedStyle === 'hide'
+                const shouldHide = hideWatched || watchedStyle === 'hide'
+                const visibleVideos = shouldHide
                   ? videos.filter(v => !watchedIds.has(v.videoId))
                   : videos
                 return (
                   <ul className="channel-grid">
                     {visibleVideos.map(v => {
                       const isWatched = watchedIds.has(v.videoId)
-                      const cardClass = `channel-card${isWatched && watchedStyle === 'dim' ? ' channel-card-watched-dim' : ''}`
+                      const cardClass = `channel-card${isWatched && !shouldHide && watchedStyle === 'dim' ? ' channel-card-watched-dim' : ''}`
                       return (
                         <li key={v.videoId} className={cardClass}>
                           <Link to={`/watch/${v.videoId}`} className="channel-card-thumb-link">

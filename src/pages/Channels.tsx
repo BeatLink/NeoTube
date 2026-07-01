@@ -1,18 +1,29 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSubscriptions, unsubscribe } from '../db/index'
+import { getSubscriptions, unsubscribe, getHistory } from '../db/index'
 import type { Subscription } from '../types'
 import './Channels.css'
 
 export default function Channels() {
   const [subs, setSubs] = useState<Subscription[]>([])
+  const [watchedChannelIds, setWatchedChannelIds] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
+  const [hideWatched, setHideWatched] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getSubscriptions()
-      .then(setSubs)
+    Promise.all([getSubscriptions(), getHistory()])
+      .then(([s, history]) => {
+        setSubs(s)
+        setWatchedChannelIds(new Set(history.map(e => e.channelId).filter(Boolean)))
+      })
       .finally(() => setLoading(false))
+
+    const refresh = () =>
+      getHistory().then(h => setWatchedChannelIds(new Set(h.map(e => e.channelId).filter(Boolean))))
+        .catch(() => {})
+    window.addEventListener('history-changed', refresh)
+    return () => window.removeEventListener('history-changed', refresh)
   }, [])
 
   async function handleUnsubscribe(channelId: string) {
@@ -20,9 +31,13 @@ export default function Channels() {
     setSubs(prev => prev.filter(s => s.channelId !== channelId))
   }
 
-  const filtered = filter
-    ? subs.filter(s => s.channelName.toLowerCase().includes(filter.toLowerCase()))
+  let visible = hideWatched
+    ? subs.filter(s => !watchedChannelIds.has(s.channelId))
     : subs
+
+  if (filter) {
+    visible = visible.filter(s => s.channelName.toLowerCase().includes(filter.toLowerCase()))
+  }
 
   if (loading) return <p className="subs-status">Loading…</p>
 
@@ -31,14 +46,23 @@ export default function Channels() {
       <div className="subs-header">
         <h1 className="subs-heading">Channels</h1>
         {subs.length > 0 && (
-          <input
-            className="subs-search"
-            type="search"
-            placeholder="Filter channels…"
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            aria-label="Filter channels"
-          />
+          <>
+            <button
+              className={`subs-toggle${hideWatched ? ' subs-toggle-active' : ''}`}
+              onClick={() => setHideWatched(h => !h)}
+              aria-pressed={hideWatched}
+            >
+              Unwatched only
+            </button>
+            <input
+              className="subs-search"
+              type="search"
+              placeholder="Filter channels…"
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              aria-label="Filter channels"
+            />
+          </>
         )}
       </div>
 
@@ -46,11 +70,15 @@ export default function Channels() {
         <p className="subs-empty">
           You haven't subscribed to any channels yet. Subscribe from a video's watch page or channel page.
         </p>
-      ) : filtered.length === 0 ? (
-        <p className="subs-empty">No channels match "{filter}".</p>
+      ) : visible.length === 0 ? (
+        <p className="subs-empty">
+          {hideWatched && !filter
+            ? 'All channels have been watched.'
+            : `No channels match "${filter}".`}
+        </p>
       ) : (
         <ul className="subs-grid">
-          {filtered.map(sub => (
+          {visible.map(sub => (
             <li key={sub.channelId} className="subs-card">
               <Link to={`/channel/${sub.channelId}`} className="subs-card-link">
                 {sub.avatar
