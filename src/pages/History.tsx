@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getHistory, removeFromHistory, clearHistory } from '../db/index'
 import type { WatchHistoryEntry } from '../types'
 import './History.css'
+
+const PAGE_SIZE = 24
+const SESSION_KEY = 'history-scroll'
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -32,12 +35,60 @@ export default function History() {
   const [loading, setLoading] = useState(true)
   const [confirmClear, setConfirmClear] = useState(false)
 
+  // Read saved scroll state once at mount
+  const [initState] = useState(() => {
+    try {
+      const s = JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? '{}')
+      return { count: (s.count as number) || PAGE_SIZE, scrollY: (s.scrollY as number) || 0 }
+    } catch { return { count: PAGE_SIZE, scrollY: 0 } }
+  })
+
+  const [visibleCount, setVisibleCount] = useState(initState.count)
+  const visibleCountRef = useRef(visibleCount)
+  const scrollRestoredRef = useRef(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+
+  // Keep ref in sync so the unmount cleanup captures the latest value
+  useEffect(() => { visibleCountRef.current = visibleCount }, [visibleCount])
+
+  // Save scroll position and visible count on unmount
+  useEffect(() => {
+    return () => {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        scrollY: window.scrollY,
+        count: visibleCountRef.current,
+      }))
+    }
+  }, [])
+
   useEffect(() => {
     getHistory().then(setHistory).finally(() => setLoading(false))
     const refresh = () => getHistory().then(setHistory)
     window.addEventListener('history-changed', refresh)
     return () => window.removeEventListener('history-changed', refresh)
   }, [])
+
+  // Restore scroll after data loads and items are rendered
+  useEffect(() => {
+    if (!loading && history.length > 0 && !scrollRestoredRef.current && initState.scrollY > 0) {
+      window.scrollTo(0, initState.scrollY)
+      scrollRestoredRef.current = true
+    }
+  }, [loading, history.length, initState.scrollY])
+
+  // Attach IntersectionObserver once data is loaded and sentinel is in the DOM
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) setVisibleCount(c => c + PAGE_SIZE)
+      },
+      { rootMargin: '200px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [loading])
 
   async function handleRemove(videoId: string) {
     await removeFromHistory(videoId)
@@ -47,10 +98,13 @@ export default function History() {
   async function handleClearAll() {
     await clearHistory()
     setHistory([])
+    setVisibleCount(PAGE_SIZE)
     setConfirmClear(false)
   }
 
   if (loading) return <p className="history-status">Loading…</p>
+
+  const visible = history.slice(0, visibleCount)
 
   return (
     <div className="history-page">
@@ -74,45 +128,50 @@ export default function History() {
       {history.length === 0 ? (
         <p className="history-empty">No watch history yet. Videos you watch will appear here.</p>
       ) : (
-        <ul className="history-grid">
-          {history.map(entry => (
-            <li key={entry.videoId} className="history-card">
-              <Link to={`/watch/${entry.videoId}`} className="history-thumb-link">
-                <div className="history-thumb">
-                  {entry.thumbnail
-                    ? <img src={entry.thumbnail} alt="" loading="lazy" />
-                    : <div className="history-thumb-blank" />
-                  }
-                  {entry.duration > 0 && (
-                    <span className="history-duration">{formatDuration(entry.duration)}</span>
-                  )}
+        <>
+          <ul className="history-grid">
+            {visible.map(entry => (
+              <li key={entry.videoId} className="history-card">
+                <Link to={`/watch/${entry.videoId}`} className="history-thumb-link">
+                  <div className="history-thumb">
+                    {entry.thumbnail
+                      ? <img src={entry.thumbnail} alt="" loading="lazy" />
+                      : <div className="history-thumb-blank" />
+                    }
+                    {entry.duration > 0 && (
+                      <span className="history-duration">{formatDuration(entry.duration)}</span>
+                    )}
+                  </div>
+                </Link>
+                <div className="history-info">
+                  <Link to={`/watch/${entry.videoId}`} className="history-title">
+                    {entry.title}
+                  </Link>
+                  <Link to={`/channel/${entry.channelId}`} className="history-channel">
+                    {entry.channelName}
+                  </Link>
+                  <p className="history-meta">
+                    {timeAgo(entry.watchedAt)}
+                    {entry.watchCount > 1 && (
+                      <span className="history-count"> · {entry.watchCount}×</span>
+                    )}
+                  </p>
                 </div>
-              </Link>
-              <div className="history-info">
-                <Link to={`/watch/${entry.videoId}`} className="history-title">
-                  {entry.title}
-                </Link>
-                <Link to={`/channel/${entry.channelId}`} className="history-channel">
-                  {entry.channelName}
-                </Link>
-                <p className="history-meta">
-                  {timeAgo(entry.watchedAt)}
-                  {entry.watchCount > 1 && (
-                    <span className="history-count"> · {entry.watchCount}×</span>
-                  )}
-                </p>
-              </div>
-              <button
-                className="history-remove"
-                onClick={() => handleRemove(entry.videoId)}
-                aria-label={`Remove ${entry.title} from history`}
-                title="Remove from history"
-              >
-                ✕
-              </button>
-            </li>
-          ))}
-        </ul>
+                <button
+                  className="history-remove"
+                  onClick={() => handleRemove(entry.videoId)}
+                  aria-label={`Remove ${entry.title} from history`}
+                  title="Remove from history"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+          {visibleCount < history.length && (
+            <div ref={sentinelRef} className="history-sentinel" aria-hidden="true" />
+          )}
+        </>
       )}
     </div>
   )

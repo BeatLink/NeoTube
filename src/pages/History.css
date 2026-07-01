@@ -171,3 +171,5 @@
 
 .history-card:hover .history-remove { opacity: 1; }
 .history-remove:hover { background: rgba(220, 50, 50, 0.85); }
+
+.history-sentinel { height: 1px; }
