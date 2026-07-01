@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
 import { useTheme } from '../contexts/ThemeContext'
 import { parseVideoId } from '../utils/youtube'
-import { getSubscriptions } from '../db/index'
+import { getSubscriptions, subscribe } from '../db/index'
+import { pluginManager } from '../plugins/manager'
 import type { Subscription } from '../types'
 
 export default function Layout() {
@@ -20,6 +21,31 @@ export default function Layout() {
     window.addEventListener('subscriptions-changed', loadSubs)
     return () => window.removeEventListener('subscriptions-changed', loadSubs)
   }, [loadSubs])
+
+  // On startup, backfill avatars for any subscriptions that were saved without one.
+  // Runs sequentially so we don't fire N channel-info requests simultaneously.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const list = await getSubscriptions()
+      const missing = list.filter(s => !s.avatar)
+      if (!missing.length) return
+      let plugin
+      try { plugin = pluginManager.getActive() } catch { return }
+      for (const sub of missing) {
+        if (cancelled) break
+        try {
+          const info = await plugin.getChannelInfo(sub.channelId)
+          if (info.avatar && !cancelled) {
+            await subscribe(sub.channelId, sub.channelName, info.avatar)
+            // subscriptions-changed is dispatched by subscribe(), so the sidebar
+            // will re-render with the new avatar after each one is resolved.
+          }
+        } catch { /* skip unreachable channels */ }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   function submit(input: string) {
     const trimmed = input.trim()

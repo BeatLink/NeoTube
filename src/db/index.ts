@@ -71,13 +71,16 @@ export async function subscribe(
   let existing: Subscription | undefined
   try { existing = await db().get<Subscription>(id) } catch { /* new */ }
 
+  // Prefer the freshly-supplied avatar; fall back to whatever was stored before
+  // so re-subscribing from a page that doesn't have the avatar doesn't erase it.
+  const resolvedAvatar = avatar || existing?.avatar
   const doc: Subscription = {
     _id: id,
     ...(existing?._rev ? { _rev: existing._rev } : {}),
     type: 'subscription',
     channelId,
     channelName,
-    ...(avatar ? { avatar } : {}),
+    ...(resolvedAvatar ? { avatar: resolvedAvatar } : {}),
     subscribedAt: existing?.subscribedAt ?? new Date().toISOString(),
   }
   await db().put(doc)

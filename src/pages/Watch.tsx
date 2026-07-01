@@ -45,6 +45,11 @@ export default function Watch() {
     } else {
       await subscribe(channelId, channelName)
       setSubscribed(true)
+      // Fetch avatar in background and update the stored subscription
+      pluginManager.getActive()
+        .getChannelInfo(channelId)
+        .then(info => { if (info.avatar) subscribe(channelId, channelName, info.avatar) })
+        .catch(() => {})
     }
   }
 
