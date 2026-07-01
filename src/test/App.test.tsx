@@ -5,6 +5,7 @@ import App from '../App'
 vi.mock('../db/index', () => ({
   getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true }),
   saveSettings: vi.fn().mockResolvedValue(undefined),
+  getSubscriptions: vi.fn().mockResolvedValue([]),
 }))
 
 describe('App', () => {

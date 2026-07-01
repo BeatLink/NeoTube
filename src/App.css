@@ -17,13 +17,22 @@
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 16px 8px;
+  overflow: hidden;
+  padding: 12px 8px 0;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .sidebar a {
-  display: block;
-  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
   border-radius: 8px;
   color: var(--text);
   text-decoration: none;
@@ -34,6 +43,71 @@
 
 .sidebar a:hover  { background: var(--surface-hover); }
 .sidebar a.active { background: var(--accent-bg); color: var(--accent); }
+
+.sidebar-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 4px;
+  flex-shrink: 0;
+}
+
+.sidebar-subs-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 0 12px 6px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.sidebar-subs {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+
+.sidebar-sub-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
+  transition: background 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-sub-item:hover { background: var(--surface-hover); }
+
+.sidebar-sub-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+.sidebar-sub-avatar-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sidebar-sub-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ── Top bar ──────────────────────────────────────────── */
 .topbar {

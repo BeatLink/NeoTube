@@ -28,46 +28,48 @@ export default function Settings() {
     <div className="settings-page">
       <h2>Settings</h2>
 
-      {/* ── Theme ── */}
-      <section className="settings-section">
-        <h3 className="settings-section-title">Theme</h3>
-        <div className="settings-options">
-          {(['light', 'dark'] as const).map(t => (
-            <label key={t} className={`settings-option ${theme === t ? 'active' : ''}`}>
-              <input
-                type="radio"
-                name="theme"
-                value={t}
-                checked={theme === t}
-                onChange={() => setTheme(t)}
-              />
-              {t === 'light' ? '☀️  Light' : '🌙  Dark'}
-            </label>
-          ))}
-        </div>
-      </section>
+      <div className="settings-sections">
+        {/* ── Theme ── */}
+        <section className="settings-section">
+          <h3 className="settings-section-title">Theme</h3>
+          <div className="settings-options">
+            {(['light', 'dark'] as const).map(t => (
+              <label key={t} className={`settings-option ${theme === t ? 'active' : ''}`}>
+                <input
+                  type="radio"
+                  name="theme"
+                  value={t}
+                  checked={theme === t}
+                  onChange={() => setTheme(t)}
+                />
+                {t === 'light' ? '☀️  Light' : '🌙  Dark'}
+              </label>
+            ))}
+          </div>
+        </section>
 
-      {/* ── Video Source ── */}
-      <section className="settings-section">
-        <h3 className="settings-section-title">Video Source</h3>
-        <div className="settings-options vertical">
-          {plugins.map(p => (
-            <label key={p.id} className={`settings-option plugin-option ${activePlugin === p.id ? 'active' : ''}`}>
-              <input
-                type="radio"
-                name="plugin"
-                value={p.id}
-                checked={activePlugin === p.id}
-                onChange={() => handlePluginChange(p.id)}
-              />
-              <div>
-                <span className="plugin-name">{p.name}</span>
-                <span className="plugin-desc">{p.description}</span>
-              </div>
-            </label>
-          ))}
-        </div>
-      </section>
+        {/* ── Video Source ── */}
+        <section className="settings-section">
+          <h3 className="settings-section-title">Video Source</h3>
+          <div className="settings-options vertical">
+            {plugins.map(p => (
+              <label key={p.id} className={`settings-option plugin-option ${activePlugin === p.id ? 'active' : ''}`}>
+                <input
+                  type="radio"
+                  name="plugin"
+                  value={p.id}
+                  checked={activePlugin === p.id}
+                  onChange={() => handlePluginChange(p.id)}
+                />
+                <div>
+                  <span className="plugin-name">{p.name}</span>
+                  <span className="plugin-desc">{p.description}</span>
+                </div>
+              </label>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   )
 }

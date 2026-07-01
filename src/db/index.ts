@@ -81,6 +81,7 @@ export async function subscribe(
     subscribedAt: existing?.subscribedAt ?? new Date().toISOString(),
   }
   await db().put(doc)
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('subscriptions-changed'))
 }
 
 export async function unsubscribe(channelId: string): Promise<void> {
@@ -90,6 +91,7 @@ export async function unsubscribe(channelId: string): Promise<void> {
   } catch {
     // Already gone — treat as success
   }
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('subscriptions-changed'))
 }
 
 // ─── P2P Sync ─────────────────────────────────────────────────────────────────

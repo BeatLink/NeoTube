@@ -2,7 +2,13 @@
   display: flex;
   flex-direction: column;
   gap: 32px;
-  max-width: 540px;
+}
+
+.settings-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+  align-items: start;
 }
 
 .settings-page h2 {
@@ -25,11 +31,13 @@
 
 .settings-options {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .settings-options.vertical {
   flex-direction: column;
+  flex-wrap: nowrap;
 }
 
 .settings-option {
