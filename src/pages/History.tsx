@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getHistory, removeFromHistory, clearHistory } from '../db/index'
+import { getHistory, removeFromHistory, clearHistory, updateHistoryThumbnail } from '../db/index'
+import { downloadAvatar } from '../utils/avatar'
 import type { WatchHistoryEntry } from '../types'
 import './History.css'
 
@@ -75,6 +76,27 @@ export default function History() {
       scrollRestoredRef.current = true
     }
   }, [loading, history.length, initState.scrollY])
+
+  // Backfill blob thumbnails for entries that only have CDN URLs (batches of 10)
+  useEffect(() => {
+    const missing = history.filter(e => e.thumbnail && !e.thumbnail.startsWith('data:'))
+    if (!missing.length) return
+    let cancelled = false
+    ;(async () => {
+      const BATCH = 10
+      for (let i = 0; i < missing.length; i += BATCH) {
+        if (cancelled) break
+        await Promise.allSettled(missing.slice(i, i + BATCH).map(async entry => {
+          const blob = await downloadAvatar(entry.thumbnail)
+          if (blob && !cancelled) {
+            await updateHistoryThumbnail(entry.videoId, blob)
+            setHistory(prev => prev.map(e => e.videoId === entry.videoId ? { ...e, thumbnail: blob } : e))
+          }
+        }))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [history.length])
 
   // Attach IntersectionObserver once data is loaded and sentinel is in the DOM
   useEffect(() => {

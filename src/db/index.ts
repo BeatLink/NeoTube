@@ -165,6 +165,13 @@ export async function removeFromHistory(videoId: string): Promise<void> {
   } catch { /* already gone */ }
 }
 
+export async function updateHistoryThumbnail(videoId: string, thumbnail: string): Promise<void> {
+  try {
+    const existing = await db().get<WatchHistoryEntry>(historyId(videoId))
+    await db().put({ ...existing, thumbnail })
+  } catch { /* entry already gone — ignore */ }
+}
+
 export async function clearHistory(): Promise<void> {
   const result = await db().allDocs({ startkey: 'history-', endkey: 'history-￿' })
   await Promise.all(result.rows.map(r => db().remove(r.id as string, r.value.rev)))

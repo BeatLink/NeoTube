@@ -12,6 +12,7 @@ vi.mock('../db/index', () => ({
   getWatchedVideoIds: vi.fn().mockResolvedValue(new Set()),
   removeFromHistory: vi.fn().mockResolvedValue(undefined),
   clearHistory: vi.fn().mockResolvedValue(undefined),
+  updateHistoryThumbnail: vi.fn().mockResolvedValue(undefined),
   getCachedChannelVideos: vi.fn().mockResolvedValue(null),
   setCachedChannelVideos: vi.fn().mockResolvedValue(undefined),
   getAllCachedChannelVideos: vi.fn().mockResolvedValue(new Map()),

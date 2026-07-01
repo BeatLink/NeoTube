@@ -29,8 +29,12 @@ export default function Watch() {
         if (cancelled) return
         setState({ status: 'ready', info })
         isSubscribed(info.channelId).then(setSubscribed)
-        recordWatch(info.videoId, info.title, info.channelId, info.channelName, info.thumbnail, info.duration)
-          .catch(() => {})
+        // Download thumbnail blob before saving so history entries are self-contained
+        ;(async () => {
+          const blob = await downloadAvatar(info.thumbnail)
+          recordWatch(info.videoId, info.title, info.channelId, info.channelName, blob ?? info.thumbnail, info.duration)
+            .catch(() => {})
+        })()
       })
       .catch((err: Error) => {
         if (!cancelled) setState({ status: 'error', message: err.message })
