@@ -36,16 +36,21 @@ function registerYtdlpHandlers() {
   })
 
   ipcMain.handle('ytdlp:channelInfo', async (_event, channelId: string) => {
-    // Fetch one flat entry from the channel to extract channel name / ID.
-    // yt-dlp does not expose subscriber count or channel avatar via this path.
+    // --dump-single-json returns channel-level JSON (including thumbnails); --flat-playlist
+    // makes entries lightweight; --playlist-end 1 avoids processing more than one video.
     const url = `https://www.youtube.com/channel/${channelId}`
-    const raw = await runYtdlp(['--flat-playlist', '--dump-json', '--playlist-items', '1', url])
-    const entry = JSON.parse(raw.trim().split('\n')[0])
+    const raw = await runYtdlp(['--flat-playlist', '--dump-single-json', '--playlist-end', '1', url])
+    const data = JSON.parse(raw)
+    type Thumb = { id?: string; url: string; width?: number }
+    const thumbs: Thumb[] = data.thumbnails ?? []
+    // Channel avatars have "avatar" in their id or come from yt3.ggpht.com
+    const avatarThumb = thumbs.find(t => t.id?.toLowerCase().includes('avatar'))
+      ?? thumbs.find(t => t.url?.includes('yt3.ggpht.com'))
     return {
-      channel_id: entry.channel_id ?? channelId,
-      name: entry.channel ?? entry.uploader ?? '',
-      avatar: '',
-      description: '',
+      channel_id: data.channel_id ?? data.id ?? channelId,
+      name: data.channel ?? data.title ?? data.uploader ?? '',
+      avatar: avatarThumb?.url ?? '',
+      description: data.description ?? '',
     }
   })
 
@@ -161,39 +166,52 @@ function registerYoutubeJsHandlers() {
     const yt = await getInnertubeClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const channel = await yt.getChannel(channelId) as any
-    if (!channel.has_videos) return []
-    const tab = await channel.getVideos()
+    let tab: any
+    try { tab = await channel.getVideos() } catch { return [] }
+    // Items may be in .videos or .items; each may be a RichItem wrapper with a .content child
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const items: any[] = tab?.videos ?? tab?.items ?? []
-    return items.slice(0, limit).map((v: any) => {
-      const thumbs: Array<{ url: string }> = v.thumbnails ?? v.thumbnail ?? []
-      return {
-        video_id: v.id ?? v.video_id,
-        title: v.title?.text ?? v.title ?? '',
-        thumbnail: thumbs.length > 0 ? thumbs[thumbs.length - 1].url : '',
-        duration: v.duration?.seconds ?? 0,
-        view_count_text: v.view_count?.text ?? v.short_view_count?.text ?? '',
-      }
-    }).filter((v: any) => v.video_id)
+    const raw: any[] = tab?.videos ?? tab?.items ?? tab?.contents ?? []
+    return raw
+      .map((item: any) => {
+        const v = item?.content ?? item   // unwrap RichItem / LockupView
+        const id = v?.id ?? v?.video_id
+        if (!id) return null
+        const thumbs: Array<{ url: string }> = v?.thumbnails ?? v?.thumbnail ?? []
+        return {
+          video_id: id,
+          title: v?.title?.text ?? v?.title ?? '',
+          thumbnail: thumbs.length > 0 ? thumbs[thumbs.length - 1].url : '',
+          duration: v?.duration?.seconds ?? v?.duration?.total_time ?? 0,
+          view_count_text: v?.view_count?.text ?? v?.short_view_count?.text ?? '',
+        }
+      })
+      .filter(Boolean)
+      .slice(0, limit)
   })
 
   ipcMain.handle('ytjs:channelPlaylists', async (_event, channelId: string, limit = 20) => {
     const yt = await getInnertubeClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const channel = await yt.getChannel(channelId) as any
-    if (!channel.has_playlists) return []
-    const tab = await channel.getPlaylists()
+    let tab: any
+    try { tab = await channel.getPlaylists() } catch { return [] }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const items: any[] = tab?.playlists ?? tab?.items ?? []
-    return items.slice(0, limit).map((p: any) => {
-      const thumbs: Array<{ url: string }> = p.thumbnails ?? p.thumbnail ?? []
-      return {
-        playlist_id: p.id,
-        title: p.title?.text ?? p.title ?? '',
-        thumbnail: thumbs.length > 0 ? thumbs[0].url : '',
-        video_count_text: p.video_count?.text ?? p.video_count ?? null,
-      }
-    }).filter((p: any) => p.playlist_id)
+    const raw: any[] = tab?.playlists ?? tab?.items ?? tab?.contents ?? []
+    return raw
+      .map((item: any) => {
+        const p = item?.content ?? item
+        const id = p?.id ?? p?.playlist_id
+        if (!id) return null
+        const thumbs: Array<{ url: string }> = p?.thumbnails ?? p?.thumbnail ?? []
+        return {
+          playlist_id: id,
+          title: p?.title?.text ?? p?.title ?? '',
+          thumbnail: thumbs.length > 0 ? thumbs[0].url : '',
+          video_count_text: p?.video_count?.text ?? p?.video_count ?? null,
+        }
+      })
+      .filter(Boolean)
+      .slice(0, limit)
   })
 }
 
