@@ -24,5 +24,9 @@ pkgs.mkShell {
     echo "NeoTube dev environment"
     echo "  node $(node --version)"
     echo "  npm  $(npm --version)"
+
+    # On NixOS the npm-downloaded Electron binary won't run (generic ELF).
+    # Point the electron npm package at the nixpkgs-patched binary instead.
+    export ELECTRON_OVERRIDE_DIST_PATH="$(dirname "$(command -v electron)")"
   '';
 }
