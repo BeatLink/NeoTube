@@ -235,7 +235,7 @@ export default function Settings() {
         <section className="settings-section">
           <h3 className="settings-section-title">Invidious Instance</h3>
           <p className="inv-hint">
-            Choose a public Invidious instance or enter your own. The instance must have CORS enabled.
+            Choose a public Invidious instance or enter your own. The instance must have the API enabled (✅) to work with NeoTube.
           </p>
           {invInstance && (
             <p className="inv-current">
@@ -280,7 +280,7 @@ export default function Settings() {
                   <span className="inv-instance-flag">{inst.flag}</span>
                   <span className="inv-instance-uri">{inst.uri.replace('https://', '')}</span>
                   <span className="inv-instance-region">{inst.region}</span>
-                  <span className="inv-instance-uptime">{inst.uptime.toFixed(1)}%</span>
+                  <span className="inv-instance-uptime">{inst.hasApi ? '✅' : '❌'} {inst.uptime.toFixed(1)}%</span>
                 </button>
               ))}
             </div>

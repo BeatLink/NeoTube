@@ -78,12 +78,12 @@ export interface InvChannelPlaylistsResponse {
   playlists: InvChannelPlaylist[]
 }
 
-// instances.json shape
+// instances.json shape — api/cors are 1/null in practice, not true/false
 export interface InvInstanceMeta {
   flag?: string
   region?: string
-  cors?: boolean
-  api?: boolean
+  cors?: boolean | number | null
+  api?: boolean | number | null
   type?: string
   uri: string
   monitor?: {

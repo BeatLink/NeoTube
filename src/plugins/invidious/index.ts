@@ -166,6 +166,7 @@ export interface InvidiousInstanceInfo {
   flag: string
   region: string
   uptime: number
+  hasApi: boolean
 }
 
 export async function fetchInvidiousInstances(): Promise<InvidiousInstanceInfo[]> {
@@ -182,15 +183,18 @@ export async function fetchInvidiousInstances(): Promise<InvidiousInstanceInfo[]
   return list
     .filter(([, meta]) =>
       meta.type === 'https' &&
-      meta.cors === true &&
-      meta.api === true &&
-      meta.monitor?.down !== true
+      !meta.monitor?.down
     )
     .map(([, meta]) => ({
       uri: meta.uri,
       flag: meta.flag ?? '🌐',
       region: meta.region ?? '??',
       uptime: meta.monitor?.uptime ?? 0,
+      hasApi: !!meta.api,
     }))
-    .sort((a, b) => b.uptime - a.uptime)
+    .sort((a, b) => {
+      // API-enabled instances first, then by uptime
+      if (a.hasApi !== b.hasApi) return a.hasApi ? -1 : 1
+      return b.uptime - a.uptime
+    })
 }
