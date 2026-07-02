@@ -5,10 +5,10 @@
 ```
 NeoTube/
 ├── server/          Node.js REST API server (Fastify + PouchDB + youtubei.js + yt-dlp)
-├── app/             Flutter native UI (iOS, Android, Linux, macOS, Windows)
-├── electron/        Desktop stop-gap wrapper (main.ts + preload.ts)
-├── src/             React UI used by the Electron stop-gap
-└── shell.nix        Nix dev shell (nodejs_22, electron, flutter, jdk17, yt-dlp)
+├── app/             Flutter native UI (Linux, iOS, Android, macOS, Windows)
+│   └── linux/       GTK3 runner — sets window title, size, background colour
+├── src/             React UI (web-only frontend to the API — Electron removed)
+└── shell.nix        Nix dev shell (nodejs_22, flutter, jdk17, yt-dlp, git)
 ```
 
 Full architecture and roadmap are in [DEVELOP.md](DEVELOP.md).
@@ -18,7 +18,8 @@ Full architecture and roadmap are in [DEVELOP.md](DEVELOP.md).
 All development happens inside the Nix shell. Enter it once at the start of a session:
 
 ```bash
-nix-shell   # provides node, npm, flutter, jdk17, yt-dlp, electron, git
+nix-shell   # provides node, npm, flutter, jdk17, yt-dlp, git
+            # also sets NEOTUBE_SERVER_PATH=$(pwd)/server
 ```
 
 - **Install libraries here** — never `npm install` or `flutter pub add` outside the shell
@@ -28,14 +29,14 @@ nix-shell   # provides node, npm, flutter, jdk17, yt-dlp, electron, git
 ## Running things
 
 ```bash
-# API server (port 7700)
+# API server (port 7700) — also started automatically by the Flutter Linux app
 cd server && npm run dev
 
-# Flutter app (pick a device with `flutter devices`)
-cd app && flutter run
+# Flutter Linux desktop (starts server as a child process automatically)
+cd app && flutter run -d linux
 
-# Electron stop-gap
-npm run dev:electron          # root — builds electron/main.ts then starts Vite + Electron
+# React web UI (optional — points at the same API server)
+npm run dev
 ```
 
 ## Server (`server/`)
@@ -56,33 +57,34 @@ Adding a route: create `server/src/routes/<name>.ts` exporting a default Fastify
 - **Nav**: go_router — routes defined in `lib/router.dart`; the bottom-nav shell wraps the 5 tab routes; `/watch/:id` and `/channel/:id` are full-screen overlays
 - **API client**: `lib/api/client.dart` — `NeoTubeClient` wraps every server endpoint; always go through this, never call `http` directly from screens
 - **Models**: `lib/models/models.dart` — mirrors `server/src/types.ts`; keep them in sync
-- **Server URL**: stored in `SharedPreferences`, managed by `ServerUrlNotifier`; users set it in the Settings screen
+- **Server URL**: stored in `SharedPreferences`, managed by `ServerUrlNotifier`; users set it in Settings
+- **Server lifecycle** (Linux/macOS/Windows): `lib/services/server_manager.dart` spawns the Node.js server as a child process on launch and terminates it on exit; uses `$NEOTUBE_SERVER_PATH` to locate the server directory
 
 Adding a screen: create `lib/screens/<name>/<name>_screen.dart`, add a route in `router.dart`, and if it needs remote data add a `FutureProvider` in `providers.dart` or co-locate it in the screen file.
 
-## Electron stop-gap (`electron/` + `src/`)
+## React web UI (`src/`)
 
-- `electron/main.ts` — adds `session.webRequest` CORS headers so the React renderer can call `http://localhost:7700`; also bridges yt-dlp and FreeTube import via IPC
-- `electron/preload.ts` — exposes `window.ytdlp` and `window.electron` via `contextBridge`
-- `src/plugins/youtubejs/innertube.ts` — Innertube singleton used by the React plugin (separate from the server's copy)
-- `src/plugins/` — plugin system (`PluginManager`, `VideoPlugin` interface); new plugins go here
+- Electron has been removed — `src/` is now a pure web frontend to the API server
+- The plugin system (`src/plugins/`) still calls `http://localhost:7700` directly
+- Run with `npm run dev` (served by Vite on port 5173); the API server must be running separately
 
 ## Commands
 
 | Task | Command |
 |------|---------|
 | Lint (React) | `npm run lint` |
-| Tests (React) | `npm test` |
-| Build Electron | `npm run build:electron` |
+| Tests (React) | `npm run test:run` |
 | Server dev | `cd server && npm run dev` |
 | Flutter analyze | `cd app && flutter analyze` |
 | Flutter test | `cd app && flutter test` |
+| Flutter Linux run | `cd app && flutter run -d linux` |
+| Flutter Linux build | `cd app && flutter build linux` |
 
 ## Conventions
 
 - TypeScript strict mode everywhere; no `any` unless unavoidable and documented
 - No barrel `index.ts` re-exports in `server/` — import from the exact file
-- Dart: use `const` constructors wherever possible; no `print()` in production code (use `debugPrint`)
+- Dart: use `const` constructors wherever possible; `debugPrint` not `print`
 - Server route files export a single default Fastify plugin function
 - Flutter screens end in `Screen`, widgets don't
 - PouchDB document IDs use a typed prefix: `sub-<channelId>`, `history-<videoId>`, `settings`, `channel-cache-<channelId>`
@@ -92,7 +94,7 @@ Adding a screen: create `lib/screens/<name>/<name>_screen.dart`, add a route in 
 Keep documentation in sync with every code change:
 
 - **`CLAUDE.md`** — update whenever commands, conventions, or project structure change
-- **`DEVELOP.md`** — update the relevant section (Architecture, Features, Directory Structure, Roadmap) when adding or removing a significant capability; tick roadmap checkboxes as items complete
+- **`DEVELOP.md`** — update the relevant section when adding or removing a significant capability; tick roadmap checkboxes as items complete
 - **`server/src/types.ts` ↔ `app/lib/models/models.dart`** — these must stay in sync; update both when the API contract changes
 
 Do not create separate design or decision documents — use the conversation and `DEVELOP.md` instead.
@@ -102,28 +104,28 @@ Do not create separate design or decision documents — use the conversation and
 Run the relevant suite before committing:
 
 ```bash
-# React / Electron (Vitest)
+# React (Vitest)
 npm run test:run
 
 # Flutter
 cd app && flutter test
 
-# Server (no test suite yet — start the server and hit /api/health as a smoke test)
+# Server smoke test (no test suite yet)
 cd server && npm run dev &
 curl -s http://localhost:7700/api/health
 ```
 
-All tests must pass before committing. If a test suite doesn't exist for the changed area, note it explicitly rather than skipping silently.
+All tests must pass before committing. If a test suite doesn't exist for the changed area, note it explicitly.
 
 ## Committing
 
 1. **Run tests** for the changed area (see above).
-2. **Update docs** — tick roadmap items, update DEVELOP.md sections, update CLAUDE.md if conventions changed.
+2. **Update docs** — tick roadmap items, update DEVELOP.md, update CLAUDE.md if conventions changed.
 3. **Stage precisely** — add specific files, not `git add .`; never stage `.env`, secrets, or build artefacts.
 4. **Commit message format**:
    - First line: `<Type>: <short imperative summary>` (≤ 72 chars)
    - Types: `Add`, `Fix`, `Refactor`, `Update`, `Remove`, `Docs`
-   - Body (optional): explain *why*, not *what*; reference the area (`server/`, `app/`, `electron/`)
+   - Body (optional): explain *why*, not *what*; reference the area (`server/`, `app/`, `src/`)
    - Always add the co-author trailer: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
 5. **One logical change per commit** — don't bundle unrelated fixes.
 

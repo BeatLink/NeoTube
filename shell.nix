@@ -43,5 +43,9 @@ pkgs.mkShell {
 
     # Silence Flutter's "run flutter doctor" nudge in CI-like environments.
     export FLUTTER_SUPPRESS_ANALYTICS=true
+
+    # Tell the Flutter Linux app where to find the server so it can start it
+    # automatically as a child process on launch.
+    export NEOTUBE_SERVER_PATH="$(pwd)/server"
   '';
 }

@@ -8,7 +8,7 @@ NeoTube is a free, open source, privacy-respecting YouTube client. It allows use
 
 ## Architecture
 
-NeoTube uses a **client–server model**. A standalone Node.js server (Fastify + PouchDB + youtubei.js + yt-dlp) runs on the user's machine or LAN and exposes a REST API. Native client apps (Flutter on mobile/desktop, Electron on desktop in the interim) are thin HTTP clients that call the API and render results.
+NeoTube uses a **client–server model**. A standalone Node.js server (Fastify + PouchDB + youtubei.js + yt-dlp) runs on the user's machine or LAN and exposes a REST API. Native client apps (Flutter on Linux/mobile/desktop) are thin HTTP clients that call the API and render results. A React/Vite web UI (`src/`) can also connect to the same API. Electron has been removed.
 
 ### System diagram
 
@@ -25,26 +25,24 @@ graph TB
         FW --> DB & IT & YD
     end
 
-    %% ── Electron frontend (stop-gap) ──────────────────────────────────────
-    subgraph EL["Desktop — Electron  (electron/ + src/)"]
+    %% ── Web UI ────────────────────────────────────────────────────────────
+    subgraph WEB["Web UI — React / Vite  (src/)  · optional"]
         direction TB
-        UI_R[React UI\nsrc/]
-        CORS["session.webRequest\nCORS middleware"]
-        UI_R -- "fetch /api/*" --> CORS
+        UI_R[React UI]
     end
 
     %% ── Flutter clients ───────────────────────────────────────────────────
     subgraph FL["Native clients — Flutter  (app/)"]
         direction TB
         FL_A[Android / iOS]
-        FL_D[Linux / macOS / Windows]
+        FL_D[Linux / macOS / Windows\nstarts server as child process]
     end
 
     %% ── External ──────────────────────────────────────────────────────────
     YT[(YouTube)]
 
     %% ── Edges ─────────────────────────────────────────────────────────────
-    CORS --> FW
+    UI_R -- "fetch /api/*" --> FW
     FL_A & FL_D -- "HTTP REST" --> FW
     IT --> YT
     YD --> YT
@@ -55,15 +53,15 @@ graph TB
 | Layer | What runs there |
 |-------|----------------|
 | **Server** | Fastify REST API, PouchDB storage, Innertube (youtubei.js), yt-dlp spawn |
-| **Electron** (stop-gap) | React UI (`src/`), `session.webRequest` CORS proxy to local server |
-| **Flutter** (native clients) | Dart app, HTTP client, video playback, native UI on each platform |
+| **Flutter** (primary clients) | Dart app, HTTP client, video playback, native UI; Linux build spawns the server as a child process |
+| **React web UI** (`src/`) | Optional browser-based client; calls the same REST API |
 
 ### Key design points
 
 - **youtube.js lives on the server.** It's a JS library that needs a real Node.js environment (no CORS, no WebView sandboxing). Flutter clients are pure Dart — they receive structured JSON from the API.
 - **yt-dlp is server-side only.** The binary is spawned from the Fastify process; clients call `/api/video/:id?backend=ytdlp`.
 - **PouchDB is the server's source of truth.** Subscriptions, history, settings, and channel caches are stored in LevelDB via PouchDB. The `/api/sync` endpoint triggers one-shot replication to a CouchDB-compatible remote (optional).
-- **Electron is a stop-gap.** It stays until Flutter desktop is polished enough. The Electron main process starts the server on launch and adds `session.webRequest` CORS headers so the React UI can call the API.
+- **Flutter Linux spawns the server.** `lib/services/server_manager.dart` starts the Fastify process as a child on launch (using `$NEOTUBE_SERVER_PATH`) and kills it on exit. Mobile and remote-desktop users configure an external server URL in Settings.
 
 ### REST API contract
 
@@ -129,10 +127,11 @@ NeoTube/
 │           ├── proxy.ts       # /api/proxy?url= — image proxy
 │           └── sync.ts        # /api/sync — PouchDB replication
 │
-├── app/                       # Flutter native UI (iOS, Android, Linux, macOS, Windows)
+├── app/                       # Flutter native UI (Linux, iOS, Android, macOS, Windows)
 │   ├── pubspec.yaml
+│   ├── linux/                 # GTK3 runner (window title, size, background colour)
 │   └── lib/
-│       ├── main.dart          # Entry point, ProviderScope, MaterialApp.router
+│       ├── main.dart          # Entry point; starts server subprocess on desktop
 │       ├── router.dart        # go_router config + bottom-nav shell
 │       ├── api/
 │       │   └── client.dart    # NeoTubeClient — typed wrappers around every API endpoint
@@ -140,6 +139,8 @@ NeoTube/
 │       │   └── models.dart    # Dart models mirroring server/src/types.ts
 │       ├── providers/
 │       │   └── providers.dart # Riverpod providers (server URL, API client, settings, subs, history)
+│       ├── services/
+│       │   └── server_manager.dart  # Spawns/stops the Node.js server on desktop
 │       ├── screens/
 │       │   ├── home/          # Subscription feed
 │       │   ├── search/        # Search with live results
@@ -152,18 +153,14 @@ NeoTube/
 │           ├── video_card.dart          # Video list item
 │           └── async_value_widget.dart  # Generic loading/error/data wrapper
 │
-├── electron/                  # Desktop stop-gap wrapper
-│   ├── main.ts                # session.webRequest CORS + yt-dlp IPC
-│   └── preload.ts             # contextBridge (window.ytdlp, window.electron)
-│
-├── src/                       # React UI used by Electron stop-gap
+├── src/                       # React web UI (optional — calls the same REST API)
 │   ├── components/
 │   ├── pages/
 │   ├── plugins/               # Plugin system (youtubejs + ytdlp) — calls /api/*
-│   ├── db/                    # PouchDB access layer
+│   ├── db/                    # PouchDB access layer (browser)
 │   └── …
 │
-├── shell.nix                  # Nix dev shell: nodejs_22, electron, flutter, jdk17, yt-dlp
+├── shell.nix                  # Nix dev shell: nodejs_22, flutter, jdk17, yt-dlp
 ├── flake.nix                  # Nix flake
 └── package.nix                # Nix package definition
 ```
@@ -319,16 +316,20 @@ _To be defined._
 - [x] All screens: Home (feed), Search, Watch, Channel, Subscriptions, History, Settings
 - [x] `VideoCard` widget, `AsyncValueWidget` generic wrapper
 - [x] go_router with bottom navigation shell
-- [ ] Android native project (`flutter create` / `flutter build apk`)
+- [x] Linux platform files generated (`app/linux/` GTK3 runner)
+- [x] Window title "NeoTube", size 1280×800, centred on launch
+- [x] `ServerManager` — spawns/terminates the Fastify server as a child process on Linux desktop
+- [x] Electron removed; `package.json` cleaned up; `capacitor.config.ts` removed
+- [ ] Flutter test suite passes (`flutter test`)
+- [ ] Android native project (`flutter build apk`)
 - [ ] iOS native project (`flutter build ipa`)
-- [ ] Linux / macOS / Windows desktop builds
 - [ ] Video player polish (fullscreen, quality selector)
 - [ ] Playback progress persistence
 - [ ] mDNS server auto-discovery
 
 ### Phase 9 — Production Hardening
-- [ ] Electron: start server process on launch, stop on quit
-- [ ] Electron: packaging with electron-builder
+- [ ] Flutter Linux: `.desktop` entry file + icon for system integration
+- [ ] Flutter Linux: bundle server + node binary alongside the app for distribution
 - [ ] Server: systemd service unit file
 - [ ] Privacy mode (no history stored)
 - [ ] Default quality preference

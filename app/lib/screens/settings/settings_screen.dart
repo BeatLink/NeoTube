@@ -168,7 +168,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 8),
           settingsAsync.maybeWhen(
             data: (s) => DropdownButtonFormField<String>(
-              value: s.activePlugin,
+              initialValue: s.activePlugin,
               decoration: const InputDecoration(border: OutlineInputBorder()),
               items: const [
                 DropdownMenuItem(
