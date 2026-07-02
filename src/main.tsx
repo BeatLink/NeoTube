@@ -1,12 +1,20 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Capacitor } from '@capacitor/core'
 import './index.css'
 import App from './App.tsx'
 import { pluginManager } from './plugins/manager'
 import { YtdlpPlugin } from './plugins/ytdlp/index'
 import { YoutubeJsPlugin } from './plugins/youtubejs/index'
 import { InvidiousPlugin } from './plugins/invidious/index'
+import { initCapacitorYtjsBridge } from './capacitor/ytjs-bridge'
 import { getSettings } from './db/index'
+
+// On native Capacitor (Android/iOS), window.ytjs isn't set by a preload script.
+// Initialise the capacitor-nodejs bridge so YoutubeJsPlugin works unchanged.
+if (Capacitor.isNativePlatform() && !window.ytjs) {
+  initCapacitorYtjsBridge()
+}
 
 pluginManager.register(new YoutubeJsPlugin())
 pluginManager.register(new YtdlpPlugin())

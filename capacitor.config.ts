@@ -6,6 +6,12 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   // Server URL for live reload during mobile development:
   // server: { url: 'http://192.168.x.x:5173', cleartext: true },
+  plugins: {
+    NodeJS: {
+      // Node.js backend files are built to public/nodejs/ and end up in dist/nodejs/
+      nodeDir: 'nodejs',
+    },
+  },
 }
 
 export default config

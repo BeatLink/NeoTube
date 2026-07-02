@@ -1,10 +1,10 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { fileURLToPath } from 'url'
 import { spawn } from 'child_process'
-import { createContext, runInContext } from 'vm'
 import path from 'path'
 import fs from 'fs/promises'
 import os from 'os'
+import * as ytjsHandlers from './ytjs-handlers'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = process.env.NODE_ENV === 'development'
@@ -71,169 +71,15 @@ function registerYtdlpHandlers() {
 
 // ─── youtube.js (Innertube) ───────────────────────────────────────────────────
 // Runs in the main process to avoid browser CORS restrictions.
-
-let _innertubeClient: unknown = null
-let _ytjsCookie = ''
-
-async function getInnertubeClient() {
-  if (!_innertubeClient) {
-    const { Innertube, Platform } = await import('youtubei.js')
-    // The default Node.js shim ships with a no-op eval that throws.
-    // Override it with Node's vm module so signature/n-parameter deciphering works.
-    Platform.load({
-      ...Platform.shim,
-      eval: (data: { output: string }, env: Record<string, unknown>) => {
-        const ctx = createContext({ ...env })
-        runInContext(data.output, ctx)
-        return ctx as Record<string, unknown>
-      },
-    })
-    _innertubeClient = await Innertube.create(_ytjsCookie ? { cookie: _ytjsCookie } : undefined)
-  }
-  return _innertubeClient as Awaited<ReturnType<typeof import('youtubei.js').Innertube.create>>
-}
+// Handler logic lives in ytjs-handlers.ts (shared with the mobile Node.js thread).
 
 function registerYoutubeJsHandlers() {
-  ipcMain.handle('ytjs:setCookie', (_event, cookie: string) => {
-    _ytjsCookie = cookie ?? ''
-    _innertubeClient = null  // force client recreation with new cookie on next request
-  })
-
-  ipcMain.handle('ytjs:info', async (_event, videoId: string) => {
-    const yt = await getInnertubeClient()
-    const info = await yt.getInfo(videoId, { client: 'ANDROID' })
-    // Serialise to plain object for IPC (class instances aren't cloneable)
-    const b = info.basic_info
-    const allFormats = [
-      ...(info.streaming_data?.formats ?? []),
-      ...(info.streaming_data?.adaptive_formats ?? []),
-    ]
-    const formats = await Promise.all(allFormats.map(async f => {
-      let url: string | undefined
-      try { url = f.url ?? await f.decipher(yt.session.player) } catch {
-        url = undefined
-      }
-      return {
-        url,
-        mime_type: (f as { mime_type?: string }).mime_type,
-        quality_label: (f as { quality_label?: string }).quality_label,
-        width: (f as { width?: number }).width,
-        height: (f as { height?: number }).height,
-        audio_channels: (f as { audio_channels?: number }).audio_channels,
-        bitrate: (f as { bitrate?: number }).bitrate,
-      }
-    }))
-    return {
-      id: b.id,
-      title: b.title,
-      channel_id: b.channel?.id,
-      channel_name: b.channel?.name ?? b.author,
-      duration: b.duration,
-      view_count: b.view_count,
-      short_description: b.short_description,
-      thumbnail: b.thumbnail?.[b.thumbnail.length - 1]?.url,
-      formats: formats.filter(f => f.url),
-    }
-  })
-
-  ipcMain.handle('ytjs:search', async (_event, query: string, limit: number) => {
-    const yt = await getInnertubeClient()
-    const results = await yt.search(query)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (results.videos ?? []).slice(0, limit).map((v: any) => ({
-      video_id: v.video_id,
-      title: v.title?.text,
-      channel_name: v.author?.name,
-      channel_id: v.author?.id,
-      thumbnail: v.thumbnails?.[v.thumbnails.length - 1]?.url,
-      length_text: v.length_text?.text,
-    }))
-  })
-
-  ipcMain.handle('ytjs:channelInfo', async (_event, channelId: string) => {
-    const yt = await getInnertubeClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const channel = await yt.getChannel(channelId) as any
-    const meta = channel?.metadata ?? {}
-    const header = channel?.header ?? {}
-    const name = header?.title?.text ?? meta?.title ?? ''
-    const avatars: Array<{ url: string; width?: number }> =
-      header?.avatar?.image?.sources ?? meta?.thumbnail ?? []
-    const avatar = avatars.length > 0
-      ? avatars.sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0].url
-      : ''
-    const subText: string = header?.subscribers?.subscriber_count?.text ?? ''
-    return {
-      channel_id: channelId,
-      name,
-      avatar,
-      description: meta?.description ?? '',
-      subscriber_count_text: subText,
-    }
-  })
-
-  ipcMain.handle('ytjs:channelVideos', async (_event, channelId: string, limit = 30) => {
-    const yt = await getInnertubeClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const channel = await yt.getChannel(channelId) as any
-    let tab: any
-    try {
-      tab = await channel.getVideos()
-    } catch (e) {
-      console.error('[ytjs:channelVideos] getVideos() threw:', e)
-      return []
-    }
-    // Items may be in .videos or .items; each may be a RichItem wrapper with a .content child
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw: any[] = tab?.videos ?? tab?.items ?? tab?.contents ?? []
-    return raw
-      .map((item: any) => {
-        const v = item?.content ?? item   // unwrap RichItem wrapper if present
-        // Classic Video/GridVideo uses video_id; new LockupView uses content_id
-        const id: string | undefined = v?.video_id ?? v?.content_id
-        if (!id) return null
-        // LockupView (new YouTube design) stores title in metadata.title.text
-        const title: string =
-          v?.title?.text ?? v?.metadata?.title?.text ?? v?.title ?? ''
-        // LockupView stores thumbnails in content_image.image; classic uses thumbnails
-        const thumbs: Array<{ url: string }> =
-          v?.thumbnails ?? v?.content_image?.image ?? v?.thumbnail ?? []
-        return {
-          video_id: id,
-          title,
-          thumbnail: thumbs.length > 0 ? thumbs[thumbs.length - 1].url : '',
-          duration: v?.duration?.seconds ?? v?.duration?.total_time ?? 0,
-          view_count_text: v?.view_count?.text ?? v?.short_view_count?.text ?? '',
-        }
-      })
-      .filter(Boolean)
-      .slice(0, limit)
-  })
-
-  ipcMain.handle('ytjs:channelPlaylists', async (_event, channelId: string, limit = 20) => {
-    const yt = await getInnertubeClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const channel = await yt.getChannel(channelId) as any
-    let tab: any
-    try { tab = await channel.getPlaylists() } catch { return [] }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw: any[] = tab?.playlists ?? tab?.items ?? tab?.contents ?? []
-    return raw
-      .map((item: any) => {
-        const p = item?.content ?? item
-        const id = p?.id ?? p?.playlist_id
-        if (!id) return null
-        const thumbs: Array<{ url: string }> = p?.thumbnails ?? p?.thumbnail ?? []
-        return {
-          playlist_id: id,
-          title: p?.title?.text ?? p?.title ?? '',
-          thumbnail: thumbs.length > 0 ? thumbs[0].url : '',
-          video_count_text: p?.video_count?.text ?? p?.video_count ?? null,
-        }
-      })
-      .filter(Boolean)
-      .slice(0, limit)
-  })
+  ipcMain.handle('ytjs:setCookie', (_event, cookie: string) => ytjsHandlers.setCookie(cookie))
+  ipcMain.handle('ytjs:info', (_event, videoId: string) => ytjsHandlers.getInfo(videoId))
+  ipcMain.handle('ytjs:search', (_event, query: string, limit: number) => ytjsHandlers.search(query, limit))
+  ipcMain.handle('ytjs:channelInfo', (_event, channelId: string) => ytjsHandlers.getChannelInfo(channelId))
+  ipcMain.handle('ytjs:channelVideos', (_event, channelId: string, limit = 30) => ytjsHandlers.getChannelVideos(channelId, limit))
+  ipcMain.handle('ytjs:channelPlaylists', (_event, channelId: string, limit = 20) => ytjsHandlers.getChannelPlaylists(channelId, limit))
 }
 
 // ─── Avatar download ─────────────────────────────────────────────────────────

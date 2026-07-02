@@ -10,6 +10,8 @@
     "build": "tsc -b && vite build",
     "build:electron:main": "esbuild electron/main.ts --bundle --platform=node --external:electron --format=esm --outdir=dist-electron && esbuild electron/preload.ts --bundle --platform=node --external:electron --format=cjs --outfile=dist-electron/preload.cjs",
     "build:electron": "npm run build && npm run build:electron:main && electron-builder",
+    "build:node-backend": "esbuild electron/ytjs-handlers.ts --bundle --platform=node --format=cjs --outfile=public/nodejs/handlers.js && cp nodejs-project/main.js public/nodejs/main.js",
+    "build:android": "npm run build && npm run build:node-backend && npx cap copy android",
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
@@ -17,6 +19,7 @@
   },
   "dependencies": {
     "@capacitor/core": "^8.4.1",
+    "capacitor-nodejs": "^0.0.1",
     "events": "^3.3.0",
     "pouchdb": "^9.0.0",
     "pouchdb-browser": "^9.0.0",
