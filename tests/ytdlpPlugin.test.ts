@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { YtdlpPlugin } from '../plugins/ytdlp/index'
-import type { YtdlpRawInfo } from '../plugins/ytdlp/types'
+import { YtdlpPlugin } from '../src/plugins/ytdlp/index'
+import type { YtdlpRawInfo } from '../src/plugins/ytdlp/types'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 

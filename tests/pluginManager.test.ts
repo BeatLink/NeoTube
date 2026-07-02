@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo } from '../plugins/types'
+import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo } from '../src/plugins/types'
 
 // Minimal stub plugin for testing the manager in isolation
 function makeStub(id: string, available: boolean): VideoPlugin {

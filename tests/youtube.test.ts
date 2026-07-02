@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseVideoId } from '../utils/youtube'
+import { parseVideoId } from '../src/utils/youtube'
 
 const ID = 'dQw4w9WgXcQ'
 

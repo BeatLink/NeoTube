@@ -11,6 +11,16 @@
   gap: 12px;
 }
 
+.settings-section .menu-btn-group {
+  display: flex;
+  width: 100%;
+}
+
+.settings-section .menu-btn {
+  flex: 1;
+  text-align: center;
+}
+
 .settings-section-title {
   font-size: 0.8rem;
   font-weight: 600;

@@ -2,14 +2,14 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { ThemeProvider } from '../contexts/ThemeContext'
-import Home from '../pages/Home'
-import Subscriptions from '../pages/Channels'
-import Settings from '../pages/Settings'
-import Watch from '../pages/Watch'
-import Search from '../pages/Search'
-import Channel from '../pages/Channel'
-import { isSubscribed, subscribe, unsubscribe, getSubscriptions } from '../db/index'
+import { ThemeProvider } from '../src/contexts/ThemeContext'
+import Home from '../src/pages/Home'
+import Subscriptions from '../src/pages/Channels'
+import Settings from '../src/pages/Settings'
+import Watch from '../src/pages/Watch'
+import Search from '../src/pages/Search'
+import Channel from '../src/pages/Channel'
+import { isSubscribed, subscribe, unsubscribe, getSubscriptions } from '../src/db/index'
 
 // ─── Shared mocks ─────────────────────────────────────────────────────────────
 
@@ -38,7 +38,7 @@ const MOCK_SEARCH_RESULTS = [
   { videoId: 'def456', title: 'Another Video', channelId: 'ch2', channelName: 'Another Channel', thumbnail: '', duration: 240 },
 ]
 
-vi.mock('../plugins/manager', () => {
+vi.mock('../src/plugins/manager', () => {
   // Stable shared object so vi.mocked(pluginManager.getActive().search)
   // always refers to the same vi.fn() that the component calls.
   const _plugin = {
@@ -74,14 +74,14 @@ vi.mock('../plugins/manager', () => {
   }
 })
 
-vi.mock('../services/videoCache', () => ({
+vi.mock('../src/services/videoCache', () => ({
   getOrFetchChannelVideos: vi.fn().mockResolvedValue(null),
   refreshChannelVideos: vi.fn().mockResolvedValue([]),
   cacheHistoryThumbnails: vi.fn().mockResolvedValue(undefined),
 }))
 
 // Inline vi.fn() — must not reference outer variables (vi.mock is hoisted)
-vi.mock('../db/index', () => ({
+vi.mock('../src/db/index', () => ({
   getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true, watchedVideoStyle: 'normal', feedSortMode: 'channel', feedHideWatched: false, channelsHideWatched: false, channelPageHideWatched: false }),
   saveSettings: vi.fn().mockResolvedValue(undefined),
   isSubscribed: vi.fn().mockResolvedValue(false),
@@ -148,7 +148,7 @@ describe('Search page', () => {
   })
 
   it('shows loading state while searching', async () => {
-    const { pluginManager } = await import('../plugins/manager')
+    const { pluginManager } = await import('../src/plugins/manager')
     vi.mocked(pluginManager.getActive().search).mockReturnValueOnce(new Promise(() => {}))
     renderSearch('cats')
     expect(screen.getByText(/searching/i)).toBeInTheDocument()
@@ -173,7 +173,7 @@ describe('Search page', () => {
   })
 
   it('shows error message when search fails', async () => {
-    const { pluginManager } = await import('../plugins/manager')
+    const { pluginManager } = await import('../src/plugins/manager')
     vi.mocked(pluginManager.getActive().search).mockRejectedValueOnce(new Error('Network error'))
     renderSearch('failing query')
     expect(await screen.findByText(/network error/i)).toBeInTheDocument()
@@ -194,7 +194,7 @@ describe('Watch page', () => {
   }
 
   it('shows loading state initially', async () => {
-    const { pluginManager } = await import('../plugins/manager')
+    const { pluginManager } = await import('../src/plugins/manager')
     vi.mocked(pluginManager.getActive().getVideoInfo).mockReturnValueOnce(new Promise(() => {}))
     renderWatch('abc123')
     expect(screen.getByText(/Loading/i)).toBeInTheDocument()
@@ -287,7 +287,7 @@ describe('Channel page', () => {
   }
 
   it('shows loading state initially', async () => {
-    const { pluginManager } = await import('../plugins/manager')
+    const { pluginManager } = await import('../src/plugins/manager')
     vi.mocked(pluginManager.getActive().getChannelInfo).mockReturnValueOnce(new Promise(() => {}))
     renderChannel('UCuAXFkgsw1L7xaCfnd5JJOw')
     expect(screen.getByText(/Loading/i)).toBeInTheDocument()
@@ -322,7 +322,7 @@ describe('Settings page', () => {
   })
 
   it('calls setActive when a plugin is selected', async () => {
-    const { pluginManager } = await import('../plugins/manager')
+    const { pluginManager } = await import('../src/plugins/manager')
     render(<Settings />, { wrapper })
     await userEvent.click(screen.getByText('yt-dlp'))
     expect(pluginManager.setActive).toHaveBeenCalledWith('ytdlp')

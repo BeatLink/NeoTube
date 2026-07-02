@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import PouchDB from 'pouchdb'
 // @ts-expect-error — no type declaration for pouchdb-adapter-memory
 import MemoryAdapter from 'pouchdb-adapter-memory'
-import type { UserSettings, Subscription, WatchHistoryEntry } from '../types'
+import type { UserSettings, Subscription, WatchHistoryEntry } from '../src/types'
 
 PouchDB.plugin(MemoryAdapter)
 

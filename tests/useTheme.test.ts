@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { ThemeProvider, useTheme } from '../contexts/ThemeContext'
+import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext'
 
-vi.mock('../db/index', () => ({
+vi.mock('../src/db/index', () => ({
   getSettings: vi.fn().mockResolvedValue({ _id: 'settings', type: 'settings', theme: 'system', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true }),
   saveSettings: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { getSettings, saveSettings } from '../db/index'
+import { getSettings, saveSettings } from '../src/db/index'
 
 function mockMatchMedia(matches: boolean) {
   vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
