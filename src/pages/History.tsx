@@ -77,8 +77,11 @@ export default function History() {
     }
   }, [loading, history.length, initState.scrollY])
 
-  // Backfill blob thumbnails for entries that only have CDN URLs (batches of 10)
+  // Backfill blob thumbnails for entries that only have CDN URLs.
+  // Dep is [loading]: fires once when loading flips to false, which is batched
+  // with setHistory, so the closure captures the fully-loaded history array.
   useEffect(() => {
+    if (loading) return
     const missing = history.filter(e => e.thumbnail && !e.thumbnail.startsWith('data:'))
     if (!missing.length) return
     let cancelled = false
@@ -96,7 +99,7 @@ export default function History() {
       }
     })()
     return () => { cancelled = true }
-  }, [history.length])
+  }, [loading])
 
   // Attach IntersectionObserver once data is loaded and sentinel is in the DOM
   useEffect(() => {
