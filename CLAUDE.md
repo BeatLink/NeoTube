@@ -13,6 +13,18 @@ NeoTube/
 
 Full architecture and roadmap are in [DEVELOP.md](DEVELOP.md).
 
+## Dev environment
+
+All development happens inside the Nix shell. Enter it once at the start of a session:
+
+```bash
+nix-shell   # provides node, npm, flutter, jdk17, yt-dlp, electron, git
+```
+
+- **Install libraries here** — never `npm install` or `flutter pub add` outside the shell
+- **Run all build, test, and run commands from inside the shell**
+- To add a new tool to the environment, add it to `shell.nix` and re-enter the shell
+
 ## Running things
 
 ```bash
