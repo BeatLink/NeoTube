@@ -1,4 +1,4 @@
-# NeoTube — Development Plan
+# NeoTube — Development Guide
 
 ## Overview
 
@@ -8,118 +8,165 @@ NeoTube is a free, open source, privacy-respecting YouTube client. It allows use
 
 ## Architecture
 
-NeoTube is a peer-to-peer application — there is no central server. Each instance of the app is a self-contained node that communicates directly with other instances. User data (subscriptions, history, preferences, etc.) is stored in a local PouchDB database on the device and synced peer-to-peer with the user's other devices or trusted peers.
+NeoTube uses a **client–server model**. A standalone Node.js server (Fastify + PouchDB + youtubei.js + yt-dlp) runs on the user's machine or LAN and exposes a REST API. Native client apps (Flutter on mobile/desktop, Electron on desktop in the interim) are thin HTTP clients that call the API and render results.
 
-### Platform Targets
+### System diagram
 
-| Platform | Runtime |
-|----------|---------|
-| Web | React + Vite (served via Node) |
-| Mobile | React + Capacitor (Android / iOS) |
-| Desktop | React + Electron |
+```mermaid
+graph TB
+    %% ── Server ─────────────────────────────────────────────────────────────
+    subgraph SRV["Server — Node.js daemon  (server/)  · port 7700"]
+        direction TB
+        FW[Fastify HTTP server]
+        DB[(PouchDB / LevelDB\n~/.neotube/db)]
+        IT["Innertube\n(youtubei.js)"]
+        YD[yt-dlp binary]
 
-The React frontend is shared across all three targets. Platform-specific code is isolated to the Capacitor and Electron layers.
+        FW --> DB & IT & YD
+    end
 
-### Data Layer
+    %% ── Electron frontend (stop-gap) ──────────────────────────────────────
+    subgraph EL["Desktop — Electron  (electron/ + src/)"]
+        direction TB
+        UI_R[React UI\nsrc/]
+        CORS["session.webRequest\nCORS middleware"]
+        UI_R -- "fetch /api/*" --> CORS
+    end
 
-- Each device runs a local **PouchDB** instance as its source of truth.
-- Devices sync with each other directly using PouchDB's built-in replication protocol.
-- No central database or sync server is required.
-- Key prefix strategy: `sub-<channelId>` for subscriptions, `history-<videoId>` for watch history.
-- Channel avatars are stored as base64 data URIs (downloaded via Electron main process to avoid CORS).
+    %% ── Flutter clients ───────────────────────────────────────────────────
+    subgraph FL["Native clients — Flutter  (app/)"]
+        direction TB
+        FL_A[Android / iOS]
+        FL_D[Linux / macOS / Windows]
+    end
 
-### Plugin System
+    %% ── External ──────────────────────────────────────────────────────────
+    YT[(YouTube)]
 
-Video data (metadata, stream URLs, search) is fetched through a plugin. Each plugin implements the `VideoPlugin` interface and is registered with the `PluginManager` singleton at startup. The manager auto-selects the first available plugin for the current environment.
+    %% ── Edges ─────────────────────────────────────────────────────────────
+    CORS --> FW
+    FL_A & FL_D -- "HTTP REST" --> FW
+    IT --> YT
+    YD --> YT
+```
 
-| Plugin | Transport | Availability |
-|--------|-----------|-------------|
-| `ytdlp` | Electron IPC → local `yt-dlp` binary | Desktop only |
-| `youtubejs` | Direct Innertube call in renderer — CORS handled by `session.webRequest` on Electron, `CapacitorHttp` on mobile | Desktop + Mobile |
+### Layer responsibilities
 
-Adding a new backend = implementing `VideoPlugin` in `src/plugins/<name>/index.ts` and calling `pluginManager.register(new MyPlugin())` in `src/main.tsx`.
+| Layer | What runs there |
+|-------|----------------|
+| **Server** | Fastify REST API, PouchDB storage, Innertube (youtubei.js), yt-dlp spawn |
+| **Electron** (stop-gap) | React UI (`src/`), `session.webRequest` CORS proxy to local server |
+| **Flutter** (native clients) | Dart app, HTTP client, video playback, native UI on each platform |
 
-### Directory Structure
+### Key design points
+
+- **youtube.js lives on the server.** It's a JS library that needs a real Node.js environment (no CORS, no WebView sandboxing). Flutter clients are pure Dart — they receive structured JSON from the API.
+- **yt-dlp is server-side only.** The binary is spawned from the Fastify process; clients call `/api/video/:id?backend=ytdlp`.
+- **PouchDB is the server's source of truth.** Subscriptions, history, settings, and channel caches are stored in LevelDB via PouchDB. The `/api/sync` endpoint triggers one-shot replication to a CouchDB-compatible remote (optional).
+- **Electron is a stop-gap.** It stays until Flutter desktop is polished enough. The Electron main process starts the server on launch and adds `session.webRequest` CORS headers so the React UI can call the API.
+
+### REST API contract
+
+```
+# Video & search
+GET  /api/video/:id?backend=youtubejs|ytdlp
+GET  /api/search?q=&limit=&backend=
+
+# Channel
+GET  /api/channel/:id?backend=
+GET  /api/channel/:id/videos?limit=&backend=
+GET  /api/channel/:id/playlists?backend=
+GET  /api/channel-cache/:channelId          (cached video list)
+PUT  /api/channel-cache/:channelId          body: CachedVideo[]
+
+# Storage
+GET    /api/settings
+PATCH  /api/settings                        body: Partial<UserSettings>
+GET    /api/subscriptions
+POST   /api/subscriptions                   body: { channelId, name, thumbnail? }
+DELETE /api/subscriptions/:channelId
+GET    /api/subscriptions/:channelId/status
+GET    /api/history
+POST   /api/history                         body: { videoId, title, channelId, channelName, thumbnail?, duration? }
+DELETE /api/history/:videoId
+DELETE /api/history                         (clear all)
+
+# Utilities
+GET    /api/proxy?url=                      streams image bytes (YouTube hosts only)
+POST   /api/sync                            body: { remoteUrl } — PouchDB replication
+GET    /api/health                          → { ok: true, version }
+```
+
+---
+
+## Platform Targets
+
+| Platform | Stack |
+|----------|-------|
+| Mobile (primary) | Flutter → iOS / Android |
+| Desktop (primary) | Flutter → Linux / macOS / Windows |
+| Desktop (stop-gap) | Electron + React (`src/`) |
+
+---
+
+## Directory Structure
 
 ```
 NeoTube/
-├── electron/              # Electron main + preload (desktop wrapper)
-│   ├── main.ts            # IPC handlers (avatar download, yt-dlp, freetube, window) + session.webRequest CORS
-│   ├── preload.ts         # contextBridge API surface
-│   │                      #   window.electron  — platform info + downloadAvatar
-│   │                      #   window.ytdlp     — yt-dlp bridge
-│   │                      #   window.freetube  — FreeTube data import
-│   └── tsconfig.json
-├── src/
-│   ├── components/        # Shared UI components (each in its own subfolder)
-│   │   ├── Button/        # Base button (variants: primary, secondary, ghost, danger; sizes: sm, md)
-│   │   ├── Layout/        # App shell: sidebar, topbar, startup avatar refresh
-│   │   ├── MenuButton/    # Segmented control group (e.g. sort mode, quality selector)
-│   │   ├── ToggleButton/  # Toggle button with active state, built on Button base classes
-│   │   ├── VideoCard/     # Video list item: thumbnail + title + channel + meta (renders as <li>)
-│   │   ├── VideoPlayer/   # HTML5 video player with quality selector
-│   │   └── VideoThumbnail/ # 16:9 thumbnail wrapper with duration badge
-│   ├── contexts/          # React contexts (ThemeContext)
-│   ├── db/                # PouchDB access layer (lazy singleton)
-│   │   └── index.ts       # Settings, subscriptions, watch history CRUD
-│   ├── pages/             # Page-level components
-│   │   ├── Home.tsx           # Landing page
-│   │   ├── Watch.tsx          # Video player (route: /watch/:videoId)
-│   │   ├── Search.tsx         # Search results (route: /search?q=...)
-│   │   ├── Channel.tsx        # Channel page — info, videos, playlists tabs (route: /channel/:channelId)
-│   │   ├── Subscriptions.tsx  # Subscription feed — videos from all subscribed channels (route: /subscriptions)
-│   │   ├── Channels.tsx       # Subscribed channel grid with search filter (route: /channels)
-│   │   ├── History.tsx        # Watch history grid (route: /history)
-│   │   └── Settings.tsx       # Theme, plugin, watched-video style, YouTube cookie, FreeTube import
-│   ├── plugins/           # Video backend plugin system
-│   │   ├── types.ts       # VideoPlugin interface + shared domain types
-│   │   ├── manager.ts     # PluginManager singleton
-│   │   ├── ytdlp/         # yt-dlp plugin (Electron IPC)
-│   │   └── youtubejs/     # youtube.js plugin — innertube.ts runs in renderer; CORS via session.webRequest / CapacitorHttp
-│   ├── services/
-│   │   └── videoCache.ts  # Stale-while-revalidate channel video cache
-│   │                      #   getOrFetchChannelVideos — serve cache + background refresh via onFresh callback
-│   │                      #   refreshChannelVideos    — force fetch, awaitable (used by batch feed loader)
-│   │                      #   cacheHistoryThumbnails  — batch blob download with onEach progress callback
-│   ├── test/              # Vitest test files + setup
-│   ├── types/             # Shared TypeScript types (index.ts, pouchdb-browser.d.ts)
-│   └── utils/
-│       ├── avatar.ts      # downloadAvatar — fetches image blob via Electron IPC
-│       ├── format.ts      # formatDuration, timeAgo — shared time/duration formatting
-│       └── youtube.ts     # parseVideoId — extracts video ID from any YouTube URL form
-├── public/                # Static assets
-├── capacitor.config.ts    # Capacitor (mobile) configuration
-├── vite.config.ts         # Vite + Vitest configuration
-├── flake.nix              # Nix flake (reproducible builds)
-├── shell.nix              # Nix dev shell (includes yt-dlp, electron)
-└── package.nix            # Nix package definition
+├── server/                    # Standalone Node.js REST API server
+│   └── src/
+│       ├── index.ts           # Fastify instance, CORS, optional API key, startup
+│       ├── db.ts              # PouchDB CRUD (settings, subscriptions, history, cache)
+│       ├── innertube.ts       # Innertube singleton (youtube.js)
+│       ├── ytdlp.ts           # yt-dlp spawn helpers
+│       ├── types.ts           # Shared response types
+│       └── routes/
+│           ├── video.ts       # /api/search, /api/video/:id
+│           ├── channel.ts     # /api/channel/* + channel cache
+│           ├── subscriptions.ts
+│           ├── history.ts
+│           ├── settings.ts
+│           ├── proxy.ts       # /api/proxy?url= — image proxy
+│           └── sync.ts        # /api/sync — PouchDB replication
+│
+├── app/                       # Flutter native UI (iOS, Android, Linux, macOS, Windows)
+│   ├── pubspec.yaml
+│   └── lib/
+│       ├── main.dart          # Entry point, ProviderScope, MaterialApp.router
+│       ├── router.dart        # go_router config + bottom-nav shell
+│       ├── api/
+│       │   └── client.dart    # NeoTubeClient — typed wrappers around every API endpoint
+│       ├── models/
+│       │   └── models.dart    # Dart models mirroring server/src/types.ts
+│       ├── providers/
+│       │   └── providers.dart # Riverpod providers (server URL, API client, settings, subs, history)
+│       ├── screens/
+│       │   ├── home/          # Subscription feed
+│       │   ├── search/        # Search with live results
+│       │   ├── watch/         # Video player (chewie/video_player) + subscribe button
+│       │   ├── channel/       # Channel header + Videos/Playlists tabs
+│       │   ├── subscriptions/ # Subscribed channel list
+│       │   ├── history/       # Watch history grid
+│       │   └── settings/      # Server URL + cookie + backend selector
+│       └── widgets/
+│           ├── video_card.dart          # Video list item
+│           └── async_value_widget.dart  # Generic loading/error/data wrapper
+│
+├── electron/                  # Desktop stop-gap wrapper
+│   ├── main.ts                # session.webRequest CORS + yt-dlp IPC
+│   └── preload.ts             # contextBridge (window.ytdlp, window.electron)
+│
+├── src/                       # React UI used by Electron stop-gap
+│   ├── components/
+│   ├── pages/
+│   ├── plugins/               # Plugin system (youtubejs + ytdlp) — calls /api/*
+│   ├── db/                    # PouchDB access layer
+│   └── …
+│
+├── shell.nix                  # Nix dev shell: nodejs_22, electron, flutter, jdk17, yt-dlp
+├── flake.nix                  # Nix flake
+└── package.nix                # Nix package definition
 ```
-
-### UI Layout
-
-```
-┌─────────────────┬──────────────────────────────────────────────┐
-│                 │  [Search or paste a YouTube URL…]  [Search]  │ ← topbar
-│  • Home         ├──────────────────────────────────────────────┤
-│  • Subscriptions│                                              │
-│  • Channels     │   <page content (Outlet)>                    │ ← content
-│  • History      │                                              │
-│  • Settings     │                                              │
-│  ─────────────  │                                              │
-│  Channels       │                                              │
-│  • Channel A    │                                              │
-│  • Channel B    │                                              │
-│  • …            │                                              │
-└─────────────────┴──────────────────────────────────────────────┘
-```
-
-The topbar search input accepts:
-- **YouTube video URL** (`/watch?v=`, `/shorts/`, `youtu.be/`) → navigates directly to `/watch/:videoId`
-- **YouTube channel URL** (`/channel/UC…`, `/@handle`, `/c/name`, `/user/name`) → navigates directly to `/channel/:channelId`
-- **Search term** → navigates to `/search?q=...`
-- Pasting a video or channel URL auto-submits immediately without pressing Search.
-
-The sidebar channel list is sorted alphabetically and scrollable (scrollbar hidden until hover).
 
 ---
 
@@ -127,17 +174,39 @@ The sidebar channel list is sorted alphabetically and scrollable (scrollbar hidd
 
 | Concern | Technology |
 |---------|-----------|
-| Frontend | React 19 + TypeScript |
-| Bundler | Vite 8 |
-| Routing | React Router 7 |
-| Local database | PouchDB 9 (pouchdb-browser) |
-| P2P sync | PouchDB replication |
-| Video backend | Plugin system (yt-dlp / youtube.js) |
-| Mobile wrapper | Capacitor 8 |
-| Desktop wrapper | Electron 43 |
-| Testing | Vitest + Testing Library |
+| Server framework | Fastify 5 |
+| Server DB | PouchDB 9 (LevelDB via `pouchdb`) |
+| YouTube data | youtubei.js 17 |
+| Video download | yt-dlp |
+| Native UI | Flutter 3 + Dart |
+| State management | flutter_riverpod |
+| Navigation | go_router |
+| Video playback | video_player + chewie |
+| Desktop stop-gap | Electron + React 19 |
+| React bundler | Vite 8 |
+| React routing | React Router 7 |
+| React testing | Vitest + Testing Library |
 | Linting | oxlint |
 | Dev environment | Nix (flake + shell.nix) |
+
+---
+
+## Running Locally
+
+```bash
+# Enter Nix dev shell (provides node, flutter, yt-dlp, electron)
+nix-shell
+
+# Start the REST API server
+cd server && npm install && npm run dev
+# → http://localhost:7700
+
+# Run Flutter app (choose a device)
+cd app && flutter pub get && flutter run
+
+# Or run the Electron stop-gap
+npm install && npm run dev:electron
+```
 
 ---
 
@@ -150,7 +219,7 @@ The sidebar channel list is sorted alphabetically and scrollable (scrollbar hidd
 - YouTube cookie auth (Settings → YouTube Account): paste session cookie to unlock 720p+ adaptive streams via youtube.js
 
 ### Search & Browse
-- Universal topbar: video URL → Watch, channel URL (`/channel/`, `/@handle`, `/c/`, `/user/`) → Channel page, search term → results
+- Universal topbar: video URL → Watch, channel URL → Channel page, search term → results
 - Search results with thumbnail, duration, channel name (linked), view count
 - Previously-watched indicator on search results (normal / dim / hide, per Settings)
 - Channel page: avatar, name, subscriber count, collapsible description, subscribe button
@@ -159,50 +228,28 @@ The sidebar channel list is sorted alphabetically and scrollable (scrollbar hidd
 
 ### Subscriptions
 - Subscribe / unsubscribe from Watch page and Channel page
-- Subscriptions stored in PouchDB, sorted alphabetically
-- **Subscriptions feed** (`/subscriptions`): recent videos from all subscribed channels, loaded in parallel batches; sort "By channel" (grouped) or "By date" (flat chronological); "Unwatched only" toggle
-- **Channels grid** (`/channels`): card grid of subscribed channels with avatar, filter search, unsubscribe button
-- Sidebar: subscribed channels listed with avatar (scrollbar hidden until hover)
-- Channel avatars stored as base64 blobs (no broken CDN links)
-- Avatar refresh on startup (sequential, 800 ms between requests) and on every channel page visit
+- Subscriptions stored in PouchDB (server-side); sorted alphabetically
+- **Subscriptions feed** (`/subscriptions`): recent videos from all subscribed channels
+- **Channels grid** (`/channels`): card grid of subscribed channels
 
 ### Watch History
-- Every watched video is recorded to PouchDB (`history-<videoId>` prefix)
-- Re-watching increments `watchCount` and updates `watchedAt` timestamp
-- History page (`/history`): responsive grid, relative timestamps, per-video remove, clear all
-- Previously-watched video style (Normal / Dim / Hide) in Settings — applied to Search, Channel, and Subscriptions feed
+- Every watched video is recorded to PouchDB
+- History page: responsive grid, relative timestamps, per-video remove, clear all
+- Previously-watched video style (Normal / Dim / Hide) in Settings
 
 ### Data Import
-- **FreeTube import** (Settings page, Desktop only): auto-detects FreeTube data directory (native, Flatpak, Snap, Windows, macOS); imports subscriptions and watch history; background avatar download after import
+- **FreeTube import** (Electron, Desktop only): imports subscriptions and watch history
 
 ### Settings
-- Light / dark theme, persisted in PouchDB and cached in localStorage
-- Active plugin selector (yt-dlp, youtube.js)
+- Light / dark theme
+- Active backend selector (yt-dlp, youtube.js)
 - Previously watched video style (Normal / Dim / Hide)
-- YouTube session cookie: stored in PouchDB, restored on startup, forwarded to Innertube for high-quality streams
-- FreeTube data import
+- YouTube session cookie: stored in PouchDB, restored on server startup
+- Server URL configuration (Flutter app)
 
 ---
 
 ## Privacy Model
-
-_To be defined._
-
----
-
-## UI/UX Design
-
-_To be defined._
-
----
-
-## Data Flow
-
-_To be defined._
-
----
-
-## Deployment
 
 _To be defined._
 
@@ -213,74 +260,76 @@ _To be defined._
 ### Phase 1 — Foundation ✓
 - [x] Nix dev environment (flake, shell.nix, package.nix)
 - [x] Vite + React + TypeScript scaffold
-- [x] React Router with page skeleton (Home, Watch, Subscriptions, Settings)
-- [x] PouchDB data layer + types (lazy singleton, pouchdb-browser)
+- [x] React Router with page skeleton
+- [x] PouchDB data layer + types
 - [x] Settings stored in PouchDB (theme, quality, privacy mode)
-- [x] Light / dark theme toggle persisted to PouchDB + localStorage
+- [x] Light / dark theme toggle
 - [x] Electron skeleton (main + preload)
 - [x] Capacitor config
-- [x] .gitignore
 
 ### Phase 2 — Plugin System & yt-dlp ✓
-- [x] `VideoPlugin` interface (`getVideoInfo`, `search`, `getChannelInfo`)
+- [x] `VideoPlugin` interface
 - [x] `PluginManager` with registration, lookup, and auto-select
 - [x] yt-dlp plugin — Electron IPC bridge to local binary
-- [x] Electron main process IPC handlers (`ytdlp:info`, `ytdlp:search`)
 - [x] VideoPlayer component with quality selector
 - [x] Watch page wired to active plugin
-- [x] yt-dlp added to Nix dev shell
 
-### Phase 3 — Additional Plugins ✓
-- [x] youtube.js plugin (Electron IPC via Innertube, Node vm for URL decipher)
-- [x] youtube.js: ANDROID client for direct stream URLs; YouTube cookie auth for 720p+ adaptive streams
-- [x] youtube.js: LockupView node support (new YouTube channel design — `content_id`, `metadata.title.text`, `content_image.image`)
+### Phase 3 — youtube.js Plugin ✓
+- [x] youtube.js plugin — runs in renderer; CORS via `session.webRequest` on Electron, `CapacitorHttp` on mobile
+- [x] YouTube cookie auth for 720p+ adaptive streams
 - [x] Plugin selector in Settings page
-- [x] youtube.js: runs in renderer — CORS via `session.webRequest` on Electron, `CapacitorHttp` on mobile
-- [x] YouTube session cookie: persisted in PouchDB, restored on startup via `innertube.setCookie()`
 
 ### Phase 4 — Search & Browse ✓
-- [x] Topbar search (all pages): URL → Watch, query → Search results
-- [x] Search results page with thumbnail, duration, channel name linked to channel page
-- [x] Channel page (`/channel/:channelId`) with avatar, subscriber count, subscribe button
-- [x] Channel page Videos and Playlists tabs (yt-dlp + youtube.js)
-- [x] Thumbnail lazy loading
+- [x] Topbar search (URL → Watch, query → Search results)
+- [x] Search results page with thumbnail, duration, channel
+- [x] Channel page with avatar, subscriber count, subscribe button
+- [x] Channel page Videos and Playlists tabs
 
 ### Phase 5 — Subscriptions & History ✓
-- [x] Subscribe / unsubscribe (Watch page + Channel page)
-- [x] Subscriptions stored in PouchDB; sorted alphabetically
-- [x] Channels grid page (`/channels`) with avatar, search filter, unsubscribe
-- [x] Subscription feed page (`/subscriptions`) with per-channel video sections and unwatched toggle
-- [x] Sidebar subscribed channel list (avatar, alphabetical, hover-reveal scrollbar)
-- [x] Channel avatars as base64 blobs (startup refresh + channel page visit)
-- [x] Watch history stored in PouchDB (`history-<videoId>`, upsert with watchCount)
-- [x] History page (`/history`) with grid, timestamps, remove, clear all
-- [x] Previously-watched style setting (Normal / Dim / Hide) applied to Search, Channel, Subscriptions feed
-- [ ] Playback progress persistence
-- [ ] P2P sync between devices via PouchDB replication
+- [x] Subscribe / unsubscribe
+- [x] Subscriptions stored in PouchDB
+- [x] Subscription feed and Channels grid pages
+- [x] Watch history stored in PouchDB
+- [x] History page with grid, timestamps, remove, clear all
+- [x] Previously-watched style setting
 
-### Phase 6 — Data Import / Export ✓ (partial)
+### Phase 6 — Data Import ✓ (partial)
 - [x] FreeTube import (subscriptions + watch history, Desktop only)
 - [ ] OPML / CSV subscription export
 - [ ] Generic watch history export
 
 ### Phase 6.5 — UI Component System ✓
-- [x] Centralised `Button` component (primary / secondary / ghost / danger variants, sm / md sizes)
-- [x] `MenuButton` segmented control (sort mode, quality selector)
-- [x] `ToggleButton` built on Button base classes
-- [x] `VideoCard` component — thumbnail + title + channel + meta as a reusable `<li>` item
-- [x] `VideoThumbnail` component — 16:9 wrapper with duration badge
-- [x] `src/utils/format.ts` — shared `formatDuration` + `timeAgo` (de-duplicated from 4 pages)
-- [x] `src/services/videoCache.ts` — stale-while-revalidate cache with callback API
-- [x] All components moved to own subfolders (`ComponentName/ComponentName.tsx` + `index.ts`)
-- [x] Pill border-radius (20px) replaced with rounded (8px) throughout
+- [x] Centralised `Button`, `MenuButton`, `ToggleButton`, `VideoCard`, `VideoThumbnail` components
+- [x] `src/utils/format.ts` — shared `formatDuration` + `timeAgo`
+- [x] `src/services/videoCache.ts` — stale-while-revalidate cache
 
-### Phase 7 — Mobile & Desktop Polish
-- [ ] Capacitor: add Android + iOS native projects
+### Phase 7 — REST API Server ✓
+- [x] Fastify server in `server/` — video, channel, subscriptions, history, settings, proxy, sync routes
+- [x] PouchDB (LevelDB) persistence on server
+- [x] Innertube singleton on server (no CORS, no workarounds)
+- [x] Optional API key authentication
+- [x] Image proxy endpoint (`/api/proxy`)
+- [x] PouchDB → CouchDB sync endpoint (`/api/sync`)
+- [x] Health check endpoint
+
+### Phase 8 — Flutter Native UI (in progress)
+- [x] Flutter project scaffold (`app/`)
+- [x] `NeoTubeClient` — typed Dart HTTP client for all API endpoints
+- [x] Riverpod providers (server URL, API client, settings, subscriptions, history)
+- [x] All screens: Home (feed), Search, Watch, Channel, Subscriptions, History, Settings
+- [x] `VideoCard` widget, `AsyncValueWidget` generic wrapper
+- [x] go_router with bottom navigation shell
+- [ ] Android native project (`flutter create` / `flutter build apk`)
+- [ ] iOS native project (`flutter build ipa`)
+- [ ] Linux / macOS / Windows desktop builds
+- [ ] Video player polish (fullscreen, quality selector)
+- [ ] Playback progress persistence
+- [ ] mDNS server auto-discovery
+
+### Phase 9 — Production Hardening
+- [ ] Electron: start server process on launch, stop on quit
 - [ ] Electron: packaging with electron-builder
-- [ ] Responsive / touch-friendly UI
-- [ ] Keyboard shortcuts
-- [ ] Offline support
-
-### Phase 8 — Privacy & Settings
+- [ ] Server: systemd service unit file
 - [ ] Privacy mode (no history stored)
 - [ ] Default quality preference
+- [ ] P2P sync between devices via PouchDB replication
