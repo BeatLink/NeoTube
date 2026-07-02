@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { pluginManager } from '../plugins/manager'
-import type { ChannelInfo, SearchResult, ChannelPlaylist } from '../plugins/types'
-import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWatchedVideoIds } from '../db/index'
-import { downloadAvatar } from '../utils/avatar'
-import { getOrFetchChannelVideos } from '../services/videoCache'
-import VideoCard from '../components/VideoCard'
-import VideoThumbnail from '../components/VideoThumbnail'
-import ToggleButton from '../components/ToggleButton'
-import Button from '../components/Button'
+import { pluginManager } from '../../plugins/manager'
+import type { ChannelInfo, SearchResult, ChannelPlaylist } from '../../plugins/types'
+import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWatchedVideoIds } from '../../db/index'
+import { downloadAvatar } from '../../utils/avatar'
+import { getOrFetchChannelVideos } from '../../services/videoCache'
+import PageLayout from '../../components/PageLayout'
+import VideoCard from '../../components/VideoCard'
+import VideoThumbnail from '../../components/VideoThumbnail'
+import ToggleButton from '../../components/ToggleButton'
+import Button from '../../components/Button'
 import './Channel.css'
 
 type Tab = 'videos' | 'playlists'
@@ -116,60 +117,59 @@ export default function Channel() {
   const shouldHide = hideWatched || watchedStyle === 'hide'
 
   return (
-    <div className="channel-page">
-      <div className="channel-header">
-        {info.avatar && (
-          <img className="channel-avatar" src={info.avatar} alt={info.name} />
-        )}
-        <div className="channel-header-info">
-          <h1 className="channel-name">{info.name}</h1>
-          {info.subscriberCount !== undefined && (
-            <p className="channel-subs">{info.subscriberCount.toLocaleString()} subscribers</p>
-          )}
-          <Button
-            className={`channel-sub-btn${subscribed ? ' subscribed' : ''}`}
-            onClick={toggleSubscribe}
-          >
-            {subscribed ? 'Subscribed' : 'Subscribe'}
-          </Button>
-        </div>
-      </div>
-
-      {info.description && (
+    <PageLayout
+      className="channel-page"
+      title={info.name}
+      subtitle={info.subscriberCount !== undefined
+        ? `${info.subscriberCount.toLocaleString()} subscribers`
+        : undefined}
+      icon={info.avatar
+        ? <img className="channel-avatar" src={info.avatar} alt={info.name} />
+        : undefined}
+      actions={
+        <Button
+          className={`channel-sub-btn${subscribed ? ' subscribed' : ''}`}
+          onClick={toggleSubscribe}
+        >
+          {subscribed ? 'Subscribed' : 'Subscribe'}
+        </Button>
+      }
+      extra={info.description ? (
         <details className="channel-description">
           <summary>About</summary>
           <p>{info.description}</p>
         </details>
-      )}
-
-      <div className="channel-tabs">
-        <button
-          className={`channel-tab ${tab === 'videos' ? 'active' : ''}`}
-          onClick={() => setTab('videos')}
-        >
-          Videos
-        </button>
-        <button
-          className={`channel-tab ${tab === 'playlists' ? 'active' : ''}`}
-          onClick={() => setTab('playlists')}
-        >
-          Playlists
-        </button>
-        {tab === 'videos' && (
-          <ToggleButton
-            active={hideWatched}
-            onClick={() => {
-              const next = !hideWatched
-              setHideWatched(next)
-              saveSettings({ channelPageHideWatched: next }).catch(() => {})
-            }}
-            style={{ marginLeft: 'auto' }}
+      ) : undefined}
+      tabs={
+        <div className="channel-tabs">
+          <button
+            className={`channel-tab${tab === 'videos' ? ' active' : ''}`}
+            onClick={() => setTab('videos')}
           >
-            Unwatched only
-          </ToggleButton>
-        )}
-      </div>
-
+            Videos
+          </button>
+          <button
+            className={`channel-tab${tab === 'playlists' ? ' active' : ''}`}
+            onClick={() => setTab('playlists')}
+          >
+            Playlists
+          </button>
+          {tab === 'videos' && (
+            <ToggleButton
+              active={hideWatched}
+              onClick={() => {
+                const next = !hideWatched
+                setHideWatched(next)
+                saveSettings({ channelPageHideWatched: next }).catch(() => {})
+              }}
+              style={{ marginLeft: 'auto' }}
+            >
+              Unwatched only
+            </ToggleButton>
+          )}
+        </div>
+      }
+    >
       {tab === 'videos' && (
         videos === null
           ? <p className="channel-tab-status">Loading videos…</p>
@@ -215,6 +215,6 @@ export default function Channel() {
               </ul>
             )
       )}
-    </div>
+    </PageLayout>
   )
 }

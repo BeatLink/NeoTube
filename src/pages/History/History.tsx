@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { getHistory, removeFromHistory, clearHistory } from '../db/index'
-import { cacheHistoryThumbnails } from '../services/videoCache'
-import VideoCard from '../components/VideoCard'
-import Button from '../components/Button'
-import { timeAgo } from '../utils/format'
-import type { WatchHistoryEntry } from '../types'
+import { getHistory, removeFromHistory, clearHistory } from '../../db/index'
+import { cacheHistoryThumbnails } from '../../services/videoCache'
+import PageLayout from '../../components/PageLayout'
+import VideoCard from '../../components/VideoCard'
+import Button from '../../components/Button'
+import { timeAgo } from '../../utils/format'
+import type { WatchHistoryEntry } from '../../types'
 import './History.css'
 
 const PAGE_SIZE = 24
@@ -99,29 +100,27 @@ export default function History() {
   const visible = history.slice(0, visibleCount)
 
   return (
-    <div className="history-page">
-      <div className="history-header">
-        <h1 className="history-heading">Watch History</h1>
-        {backfillProgress && (
-          <p className="history-status history-backfill-status">
-            Caching thumbnails… {backfillProgress.done}/{backfillProgress.total}
-          </p>
-        )}
-        {history.length > 0 && (
-          confirmClear ? (
-            <div className="history-confirm">
-              <span>Clear all history?</span>
-              <Button size="sm" variant="danger" onClick={handleClearAll}>Yes, clear</Button>
-              <Button size="sm" onClick={() => setConfirmClear(false)}>Cancel</Button>
-            </div>
-          ) : (
-            <Button className="history-clear-btn" onClick={() => setConfirmClear(true)}>
-              Clear all
-            </Button>
-          )
-        )}
-      </div>
-
+    <PageLayout
+      title="Watch History"
+      actions={history.length > 0 ? (
+        confirmClear ? (
+          <div className="history-confirm">
+            <span>Clear all history?</span>
+            <Button size="sm" variant="danger" onClick={handleClearAll}>Yes, clear</Button>
+            <Button size="sm" onClick={() => setConfirmClear(false)}>Cancel</Button>
+          </div>
+        ) : (
+          <>
+            {backfillProgress && (
+              <p className="history-backfill-status">
+                Caching thumbnails… {backfillProgress.done}/{backfillProgress.total}
+              </p>
+            )}
+            <Button onClick={() => setConfirmClear(true)}>Clear all</Button>
+          </>
+        )
+      ) : undefined}
+    >
       {history.length === 0 ? (
         <p className="history-empty">No watch history yet. Videos you watch will appear here.</p>
       ) : (
@@ -152,6 +151,6 @@ export default function History() {
           )}
         </>
       )}
-    </div>
+    </PageLayout>
   )
 }

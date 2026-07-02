@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSubscriptions, getSettings, saveSettings, getWatchedVideoIds, getAllCachedChannelVideos } from '../db/index'
-import { refreshChannelVideos } from '../services/videoCache'
-import VideoCard from '../components/VideoCard'
-import ToggleButton from '../components/ToggleButton'
-import MenuButton from '../components/MenuButton'
-import type { Subscription } from '../types'
-import type { SearchResult } from '../plugins/types'
+import { getSubscriptions, getSettings, saveSettings, getWatchedVideoIds, getAllCachedChannelVideos } from '../../db/index'
+import { refreshChannelVideos } from '../../services/videoCache'
+import PageLayout from '../../components/PageLayout'
+import VideoCard from '../../components/VideoCard'
+import ToggleButton from '../../components/ToggleButton'
+import MenuButton from '../../components/MenuButton'
+import type { Subscription } from '../../types'
+import type { SearchResult } from '../../plugins/types'
 import './Subscriptions.css'
 
 type Section =
@@ -113,10 +114,11 @@ export default function Subscriptions() {
     : []
 
   return (
-    <div className="feed-page">
-      <div className="feed-header">
-        <h1 className="feed-heading">Subscriptions</h1>
-        <div className="feed-controls">
+    <PageLayout
+      title="Subscriptions"
+      className="feed-page"
+      actions={
+        <>
           <MenuButton
             options={[
               { value: 'channel', label: 'By channel' },
@@ -139,9 +141,9 @@ export default function Subscriptions() {
           >
             Unwatched only
           </ToggleButton>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {sortMode === 'date' && (
         <>
           {loadingCount > 0 && (
@@ -214,6 +216,6 @@ export default function Subscriptions() {
           </section>
         )
       })}
-    </div>
+    </PageLayout>
   )
 }

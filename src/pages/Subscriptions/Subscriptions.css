@@ -1,25 +1,5 @@
-.feed-page {
-  display: flex;
-  flex-direction: column;
-  gap: 40px;
-}
-
-.feed-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.feed-heading { margin: 0; }
-
-.feed-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
+/* Wider gap between channel sections than the default 24px */
+.feed-page { --page-gap: 40px; }
 
 .feed-status,
 .feed-empty {

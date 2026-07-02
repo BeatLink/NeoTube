@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { useTheme } from '../contexts/ThemeContext'
-import { pluginManager } from '../plugins/manager'
-import { saveSettings, getSettings, subscribe, recordWatch } from '../db/index'
-import { downloadAvatar } from '../utils/avatar'
-import Button from '../components/Button'
+import { useTheme } from '../../contexts/ThemeContext'
+import { pluginManager } from '../../plugins/manager'
+import { saveSettings, getSettings, subscribe, recordWatch } from '../../db/index'
+import { downloadAvatar } from '../../utils/avatar'
+import PageLayout from '../../components/PageLayout'
+import Button from '../../components/Button'
 import './Settings.css'
 
 // ─── FreeTube import types ────────────────────────────────────────────────────
@@ -141,9 +142,7 @@ export default function Settings() {
   const isElectron = typeof window.freetube !== 'undefined'
 
   return (
-    <div className="settings-page">
-      <h2>Settings</h2>
-
+    <PageLayout title="Settings">
       <div className="settings-sections">
         {/* ── Theme ── */}
         <section className="settings-section">
@@ -318,6 +317,6 @@ export default function Settings() {
           )}
         </section>
       </div>
-    </div>
+    </PageLayout>
   )
 }

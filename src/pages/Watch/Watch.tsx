@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { pluginManager } from '../plugins/manager'
-import type { VideoInfo } from '../plugins/types'
-import { isSubscribed, subscribe, unsubscribe, recordWatch } from '../db/index'
-import { downloadAvatar } from '../utils/avatar'
-import VideoPlayer from '../components/VideoPlayer'
-import Button from '../components/Button'
+import { pluginManager } from '../../plugins/manager'
+import type { VideoInfo } from '../../plugins/types'
+import { isSubscribed, subscribe, unsubscribe, recordWatch } from '../../db/index'
+import { downloadAvatar } from '../../utils/avatar'
+import VideoPlayer from '../../components/VideoPlayer'
+import Button from '../../components/Button'
 import './Watch.css'
 
 type State =

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSubscriptions, unsubscribe, getHistory, getSettings, saveSettings } from '../db/index'
-import ToggleButton from '../components/ToggleButton'
-import Button from '../components/Button'
-import type { Subscription } from '../types'
+import { getSubscriptions, unsubscribe, getHistory, getSettings, saveSettings } from '../../db/index'
+import PageLayout from '../../components/PageLayout'
+import ToggleButton from '../../components/ToggleButton'
+import Button from '../../components/Button'
+import type { Subscription } from '../../types'
 import './Channels.css'
 
 export default function Channels() {
@@ -45,29 +46,27 @@ export default function Channels() {
   if (loading) return <p className="subs-status">Loading…</p>
 
   return (
-    <div className="subs-page">
-      <div className="subs-header">
-        <h1 className="subs-heading">Channels</h1>
-        {subs.length > 0 && (
-          <div className="subs-controls">
-            <ToggleButton
-              active={hideWatched}
-              onClick={() => { const next = !hideWatched; setHideWatched(next); saveSettings({ channelsHideWatched: next }).catch(() => {}) }}
-            >
-              Unwatched only
-            </ToggleButton>
-            <input
-              className="subs-search"
-              type="search"
-              placeholder="Filter channels…"
-              value={filter}
-              onChange={e => setFilter(e.target.value)}
-              aria-label="Filter channels"
-            />
-          </div>
-        )}
-      </div>
-
+    <PageLayout
+      title="Channels"
+      actions={subs.length > 0 ? (
+        <>
+          <ToggleButton
+            active={hideWatched}
+            onClick={() => { const next = !hideWatched; setHideWatched(next); saveSettings({ channelsHideWatched: next }).catch(() => {}) }}
+          >
+            Unwatched only
+          </ToggleButton>
+          <input
+            className="subs-search"
+            type="search"
+            placeholder="Filter channels…"
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            aria-label="Filter channels"
+          />
+        </>
+      ) : undefined}
+    >
       {subs.length === 0 ? (
         <p className="subs-empty">
           You haven't subscribed to any channels yet. Subscribe from a video's watch page or channel page.
@@ -103,6 +102,6 @@ export default function Channels() {
           ))}
         </ul>
       )}
-    </div>
+    </PageLayout>
   )
 }
