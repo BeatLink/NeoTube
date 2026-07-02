@@ -1,10 +1,9 @@
 .settings-sections {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 24px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  max-width: 560px;
 }
-
 
 .settings-section {
   display: flex;
@@ -20,85 +19,23 @@
   color: var(--text-muted);
 }
 
-.settings-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
+/* ── Plugin info card ─────────────────────────────────────────────────────── */
 
-.settings-options.vertical {
-  flex-direction: column;
-  flex-wrap: nowrap;
-}
-
-.settings-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 8px;
+.plugin-info {
+  padding: 12px 14px;
   border: 1px solid var(--border);
+  border-radius: 8px;
   background: var(--surface);
-  color: var(--text);
-  font-size: 14px;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-  user-select: none;
 }
 
-.settings-option:hover {
-  background: var(--surface-hover);
-}
-
-.settings-option.active {
-  border-color: var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent);
-}
-
-.settings-option input[type="radio"] {
-  accent-color: var(--accent);
-}
-
-/* Plugin options — stacked with name + description */
-.plugin-option {
-  align-items: flex-start;
-  flex-direction: row;
-  gap: 12px;
-}
-
-.plugin-option input[type="radio"] {
-  margin-top: 3px;
-  flex-shrink: 0;
-}
-
-.plugin-option .plugin-name {
-  font-weight: 600;
-  display: block;
-}
-
-.plugin-option .plugin-desc {
-  font-size: 12px;
+.plugin-info p {
+  margin: 0;
+  font-size: 13px;
   color: var(--text-muted);
-  display: block;
-  margin-top: 2px;
-}
-
-.plugin-option.active .plugin-desc {
-  color: var(--accent);
-  opacity: 0.8;
-}
-
-.plugin-option > div {
-  display: flex;
-  flex-direction: column;
+  line-height: 1.55;
 }
 
 /* ── FreeTube import ──────────────────────────────────────────────────────── */
-
-.ft-import-section {
-  grid-column: 1 / -1;  /* span full grid width */
-}
 
 .ft-unavailable {
   font-size: 13px;
@@ -114,7 +51,7 @@
 }
 
 /* Button component provides border-radius, border, cursor, transition */
-.ft-scan-btn:hover  { background: var(--surface-hover); }
+.ft-scan-btn:hover   { background: var(--surface-hover); }
 .ft-cancel-btn:hover { background: var(--surface-hover); }
 
 .ft-actions {

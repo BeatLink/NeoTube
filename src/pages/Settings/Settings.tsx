@@ -4,6 +4,7 @@ import { pluginManager } from '../../plugins/manager'
 import { saveSettings, getSettings, subscribe, recordWatch } from '../../db/index'
 import { downloadAvatar } from '../../utils/avatar'
 import PageLayout from '../../components/PageLayout'
+import MenuButton from '../../components/MenuButton'
 import Button from '../../components/Button'
 import './Settings.css'
 
@@ -74,7 +75,6 @@ export default function Settings() {
     try {
       const dirs = await window.freetube.scan()
       if (!dirs.length) { setImportState({ status: 'not-found' }); return }
-      // Use first found directory; in practice there's almost never more than one.
       const dir = dirs[0]
       const data = await window.freetube.readData(dir)
       setImportState({ status: 'preview', dir, data })
@@ -92,8 +92,6 @@ export default function Settings() {
     try {
       if (importSubs) {
         for (const sub of data.subscriptions) {
-          // Save without avatar for now — stale FreeTube CDN URLs break immediately.
-          // The background refresh below downloads fresh blobs for each channel.
           await subscribe(sub.id, sub.name)
           subsImported++
         }
@@ -111,9 +109,6 @@ export default function Settings() {
       }
       setImportState({ status: 'done', subs: subsImported, hist: histImported })
 
-      // FreeTube thumbnail URLs are stale CDN links that often break.
-      // Kick off a background refresh via the active plugin so each imported
-      // channel gets a fresh avatar without blocking the "done" UI state.
       if (importSubs && data.subscriptions.length > 0) {
         let plugin
         try { plugin = pluginManager.getActive() } catch { /* no plugin active */ }
@@ -140,83 +135,62 @@ export default function Settings() {
   }
 
   const isElectron = typeof window.freetube !== 'undefined'
+  const activePluginInfo = plugins.find(p => p.id === activePlugin)
 
   return (
     <PageLayout title="Settings">
       <div className="settings-sections">
+
         {/* ── Theme ── */}
         <section className="settings-section">
           <h3 className="settings-section-title">Theme</h3>
-          <div className="settings-options">
-            {(['light', 'dark'] as const).map(t => (
-              <label key={t} className={`settings-option ${theme === t ? 'active' : ''}`}>
-                <input
-                  type="radio"
-                  name="theme"
-                  value={t}
-                  checked={theme === t}
-                  onChange={() => setTheme(t)}
-                />
-                {t === 'light' ? '☀️  Light' : '🌙  Dark'}
-              </label>
-            ))}
-          </div>
+          <MenuButton
+            options={[
+              { value: 'light', label: '☀️  Light' },
+              { value: 'dark', label: '🌙  Dark' },
+            ]}
+            value={theme}
+            onChange={v => setTheme(v as 'light' | 'dark')}
+          />
         </section>
 
         {/* ── Previously Watched ── */}
         <section className="settings-section">
           <h3 className="settings-section-title">Previously Watched</h3>
-          <div className="settings-options">
-            {([
-              ['normal', 'Normal'],
-              ['dim',    'Dim'],
-              ['hide',   'Hide'],
-            ] as const).map(([val, label]) => (
-              <label key={val} className={`settings-option ${watchedStyle === val ? 'active' : ''}`}>
-                <input
-                  type="radio"
-                  name="watchedStyle"
-                  value={val}
-                  checked={watchedStyle === val}
-                  onChange={() => handleWatchedStyleChange(val)}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
+          <MenuButton
+            options={[
+              { value: 'normal', label: 'Normal' },
+              { value: 'dim', label: 'Dim' },
+              { value: 'hide', label: 'Hide' },
+            ]}
+            value={watchedStyle}
+            onChange={v => handleWatchedStyleChange(v as 'normal' | 'dim' | 'hide')}
+          />
         </section>
 
         {/* ── Video Source ── */}
         <section className="settings-section">
           <h3 className="settings-section-title">Video Source</h3>
-          <div className="settings-options vertical">
-            {plugins.map(p => (
-              <label key={p.id} className={`settings-option plugin-option ${activePlugin === p.id ? 'active' : ''}`}>
-                <input
-                  type="radio"
-                  name="plugin"
-                  value={p.id}
-                  checked={activePlugin === p.id}
-                  onChange={() => handlePluginChange(p.id)}
-                />
-                <div>
-                  <span className="plugin-name">{p.name}</span>
-                  <span className="plugin-desc">{p.description}</span>
-                </div>
-              </label>
-            ))}
-          </div>
+          <MenuButton
+            options={plugins.map(p => ({ value: p.id, label: p.name }))}
+            value={activePlugin}
+            onChange={handlePluginChange}
+          />
+          {activePluginInfo && (
+            <div className="plugin-info">
+              <p>{activePluginInfo.description}</p>
+            </div>
+          )}
         </section>
 
         {/* ── Import from FreeTube ── */}
-        <section className="settings-section ft-import-section">
+        <section className="settings-section">
           <h3 className="settings-section-title">Import from FreeTube</h3>
 
           {!isElectron ? (
             <p className="ft-unavailable">Available in the desktop app only.</p>
           ) : (
             <div className="ft-import">
-              {/* Idle / scan button */}
               {(importState.status === 'idle' || importState.status === 'not-found') && (
                 <>
                   <Button className="ft-scan-btn" onClick={handleScan}>
@@ -234,7 +208,6 @@ export default function Settings() {
                 <p className="ft-msg">Searching for FreeTube data…</p>
               )}
 
-              {/* Preview */}
               {importState.status === 'preview' && (
                 <>
                   <p className="ft-path">{importState.dir}</p>
@@ -316,6 +289,7 @@ export default function Settings() {
             </div>
           )}
         </section>
+
       </div>
     </PageLayout>
   )

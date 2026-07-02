@@ -324,7 +324,7 @@ describe('Settings page', () => {
   it('calls setActive when a plugin is selected', async () => {
     const { pluginManager } = await import('../plugins/manager')
     render(<Settings />, { wrapper })
-    await userEvent.click(screen.getByDisplayValue('ytdlp'))
+    await userEvent.click(screen.getByText('yt-dlp'))
     expect(pluginManager.setActive).toHaveBeenCalledWith('ytdlp')
   })
 })
