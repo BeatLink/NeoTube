@@ -1,0 +1,76 @@
+# NeoTube — Claude Code guidance
+
+## Repo layout
+
+```
+NeoTube/
+├── server/          Node.js REST API server (Fastify + PouchDB + youtubei.js + yt-dlp)
+├── app/             Flutter native UI (iOS, Android, Linux, macOS, Windows)
+├── electron/        Desktop stop-gap wrapper (main.ts + preload.ts)
+├── src/             React UI used by the Electron stop-gap
+└── shell.nix        Nix dev shell (nodejs_22, electron, flutter, jdk17, yt-dlp)
+```
+
+Full architecture and roadmap are in [DEVELOP.md](DEVELOP.md).
+
+## Running things
+
+```bash
+# API server (port 7700)
+cd server && npm run dev
+
+# Flutter app (pick a device with `flutter devices`)
+cd app && flutter run
+
+# Electron stop-gap
+npm run dev:electron          # root — builds electron/main.ts then starts Vite + Electron
+```
+
+## Server (`server/`)
+
+- **Framework**: Fastify 5, ESM, TypeScript via `tsx`
+- **DB**: PouchDB 9 on LevelDB (`~/.neotube/db` or `$NEOTUBE_DB_PATH`)
+- **YouTube**: youtubei.js Innertube singleton in `server/src/innertube.ts` — no CORS workarounds needed
+- **yt-dlp**: spawned from `server/src/ytdlp.ts`; path via `$YTDLP_PATH`
+- **Port**: 7700 (override via `$NEOTUBE_PORT`)
+- **Auth**: optional `X-Api-Key` header via `$NEOTUBE_API_KEY`
+- All routes are under `/api/` — see `server/src/routes/`
+
+Adding a route: create `server/src/routes/<name>.ts` exporting a default Fastify plugin, then register it in `server/src/index.ts`.
+
+## Flutter app (`app/`)
+
+- **State**: flutter_riverpod — all async data goes through providers in `lib/providers/providers.dart`
+- **Nav**: go_router — routes defined in `lib/router.dart`; the bottom-nav shell wraps the 5 tab routes; `/watch/:id` and `/channel/:id` are full-screen overlays
+- **API client**: `lib/api/client.dart` — `NeoTubeClient` wraps every server endpoint; always go through this, never call `http` directly from screens
+- **Models**: `lib/models/models.dart` — mirrors `server/src/types.ts`; keep them in sync
+- **Server URL**: stored in `SharedPreferences`, managed by `ServerUrlNotifier`; users set it in the Settings screen
+
+Adding a screen: create `lib/screens/<name>/<name>_screen.dart`, add a route in `router.dart`, and if it needs remote data add a `FutureProvider` in `providers.dart` or co-locate it in the screen file.
+
+## Electron stop-gap (`electron/` + `src/`)
+
+- `electron/main.ts` — adds `session.webRequest` CORS headers so the React renderer can call `http://localhost:7700`; also bridges yt-dlp and FreeTube import via IPC
+- `electron/preload.ts` — exposes `window.ytdlp` and `window.electron` via `contextBridge`
+- `src/plugins/youtubejs/innertube.ts` — Innertube singleton used by the React plugin (separate from the server's copy)
+- `src/plugins/` — plugin system (`PluginManager`, `VideoPlugin` interface); new plugins go here
+
+## Commands
+
+| Task | Command |
+|------|---------|
+| Lint (React) | `npm run lint` |
+| Tests (React) | `npm test` |
+| Build Electron | `npm run build:electron` |
+| Server dev | `cd server && npm run dev` |
+| Flutter analyze | `cd app && flutter analyze` |
+| Flutter test | `cd app && flutter test` |
+
+## Conventions
+
+- TypeScript strict mode everywhere; no `any` unless unavoidable and documented
+- No barrel `index.ts` re-exports in `server/` — import from the exact file
+- Dart: use `const` constructors wherever possible; no `print()` in production code (use `debugPrint`)
+- Server route files export a single default Fastify plugin function
+- Flutter screens end in `Screen`, widgets don't
+- PouchDB document IDs use a typed prefix: `sub-<channelId>`, `history-<videoId>`, `settings`, `channel-cache-<channelId>`
