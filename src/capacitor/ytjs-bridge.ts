@@ -34,13 +34,19 @@ function invoke(method: string, ...args: unknown[]): Promise<unknown> {
 // Matches the shape of window.ytjs set by the Electron preload, so
 // YoutubeJsPlugin works without modification on both platforms.
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const cast = <T>(p: Promise<unknown>): Promise<T> => p as Promise<T>
+
 export function initCapacitorYtjsBridge(): void {
-  ;(window as Window & { ytjs?: unknown }).ytjs = {
-    setCookie: (cookie: string) => invoke('setCookie', cookie),
-    getInfo: (videoId: string) => invoke('getInfo', videoId),
-    search: (query: string, limit?: number) => invoke('search', query, limit ?? 10),
-    getChannelInfo: (channelId: string) => invoke('getChannelInfo', channelId),
-    getChannelVideos: (channelId: string, limit?: number) => invoke('getChannelVideos', channelId, limit ?? 30),
-    getChannelPlaylists: (channelId: string, limit?: number) => invoke('getChannelPlaylists', channelId, limit ?? 20),
+  // The bridge matches the window.ytjs shape declared in src/plugins/youtubejs/index.ts
+  // so YoutubeJsPlugin works unchanged on Capacitor.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(window as any).ytjs = {
+    setCookie: (cookie: string) => cast<void>(invoke('setCookie', cookie)),
+    getInfo: (videoId: string) => cast(invoke('getInfo', videoId)),
+    search: (query: string, limit?: number) => cast(invoke('search', query, limit ?? 10)),
+    getChannelInfo: (channelId: string) => cast(invoke('getChannelInfo', channelId)),
+    getChannelVideos: (channelId: string, limit?: number) => cast(invoke('getChannelVideos', channelId, limit ?? 30)),
+    getChannelPlaylists: (channelId: string, limit?: number) => cast(invoke('getChannelPlaylists', channelId, limit ?? 20)),
   }
 }

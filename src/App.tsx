@@ -17,7 +17,7 @@ export default function App() {
   useEffect(() => {
     if (!window.ytjs?.setCookie) return
     getSettings().then(s => {
-      window.ytjs.setCookie(s.ytCookie ?? '')
+      window.ytjs?.setCookie(s.ytCookie ?? '')
     }).catch(() => {})
   }, [])
 

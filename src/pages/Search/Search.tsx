@@ -3,7 +3,6 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { pluginManager } from '../../plugins/manager'
 import { getSettings, getWatchedVideoIds } from '../../db/index'
 import VideoThumbnail from '../../components/VideoThumbnail'
-import { formatDuration } from '../../utils/format'
 import type { SearchResult } from '../../plugins/types'
 import './Search.css'
 
