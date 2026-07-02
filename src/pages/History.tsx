@@ -83,24 +83,29 @@ export default function History() {
   // with setHistory, so the closure captures the fully-loaded history array.
   useEffect(() => {
     if (loading) return
-    const missing = history.filter(e => e.thumbnail && !e.thumbnail.startsWith('data:'))
-    console.log('[history backfill] total:', history.length, 'need caching:', missing.length, 'electron:', !!window.electron?.downloadAvatar)
-    if (!missing.length) return
+    // For entries with CDN URLs: download as-is.
+    // For entries with empty thumbnails (e.g. FreeTube imports): derive URL from video ID.
+    const ytThumb = (id: string) => `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
+    const toBackfill = history
+      .filter(e => !e.thumbnail?.startsWith('data:'))
+      .map(e => ({ entry: e, url: e.thumbnail || ytThumb(e.videoId) }))
+    console.log('[history backfill] total:', history.length, 'need caching:', toBackfill.length, 'electron:', !!window.electron?.downloadAvatar)
+    if (!toBackfill.length) return
     let done = 0
     let cancelled = false
-    setBackfillProgress({ done: 0, total: missing.length })
+    setBackfillProgress({ done: 0, total: toBackfill.length })
     ;(async () => {
       const BATCH = 10
-      for (let i = 0; i < missing.length; i += BATCH) {
+      for (let i = 0; i < toBackfill.length; i += BATCH) {
         if (cancelled) break
-        await Promise.allSettled(missing.slice(i, i + BATCH).map(async entry => {
-          const blob = await downloadAvatar(entry.thumbnail)
+        await Promise.allSettled(toBackfill.slice(i, i + BATCH).map(async ({ entry, url }) => {
+          const blob = await downloadAvatar(url)
           console.log('[history backfill]', entry.videoId, blob ? 'cached' : 'failed')
           if (blob && !cancelled) {
             await updateHistoryThumbnail(entry.videoId, blob)
             setHistory(prev => prev.map(e => e.videoId === entry.videoId ? { ...e, thumbnail: blob } : e))
           }
-          if (!cancelled) setBackfillProgress({ done: ++done, total: missing.length })
+          if (!cancelled) setBackfillProgress({ done: ++done, total: toBackfill.length })
         }))
       }
       if (!cancelled) setBackfillProgress(null)
