@@ -73,6 +73,7 @@ function registerYtdlpHandlers() {
 // Runs in the main process to avoid browser CORS restrictions.
 
 let _innertubeClient: unknown = null
+let _ytjsCookie = ''
 
 async function getInnertubeClient() {
   if (!_innertubeClient) {
@@ -87,15 +88,20 @@ async function getInnertubeClient() {
         return ctx as Record<string, unknown>
       },
     })
-    _innertubeClient = await Innertube.create()
+    _innertubeClient = await Innertube.create(_ytjsCookie ? { cookie: _ytjsCookie } : undefined)
   }
   return _innertubeClient as Awaited<ReturnType<typeof import('youtubei.js').Innertube.create>>
 }
 
 function registerYoutubeJsHandlers() {
+  ipcMain.handle('ytjs:setCookie', (_event, cookie: string) => {
+    _ytjsCookie = cookie ?? ''
+    _innertubeClient = null  // force client recreation with new cookie on next request
+  })
+
   ipcMain.handle('ytjs:info', async (_event, videoId: string) => {
     const yt = await getInnertubeClient()
-    const info = await yt.getBasicInfo(videoId)
+    const info = await yt.getInfo(videoId, { client: 'ANDROID' })
     // Serialise to plain object for IPC (class instances aren't cloneable)
     const b = info.basic_info
     const allFormats = [
@@ -104,7 +110,9 @@ function registerYoutubeJsHandlers() {
     ]
     const formats = await Promise.all(allFormats.map(async f => {
       let url: string | undefined
-      try { url = f.url ?? await f.decipher(yt.session.player) } catch { url = undefined }
+      try { url = f.url ?? await f.decipher(yt.session.player) } catch {
+        url = undefined
+      }
       return {
         url,
         mime_type: (f as { mime_type?: string }).mime_type,
@@ -124,7 +132,7 @@ function registerYoutubeJsHandlers() {
       view_count: b.view_count,
       short_description: b.short_description,
       thumbnail: b.thumbnail?.[b.thumbnail.length - 1]?.url,
-      formats,
+      formats: formats.filter(f => f.url),
     }
   })
 
@@ -169,19 +177,30 @@ function registerYoutubeJsHandlers() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const channel = await yt.getChannel(channelId) as any
     let tab: any
-    try { tab = await channel.getVideos() } catch { return [] }
+    try {
+      tab = await channel.getVideos()
+    } catch (e) {
+      console.error('[ytjs:channelVideos] getVideos() threw:', e)
+      return []
+    }
     // Items may be in .videos or .items; each may be a RichItem wrapper with a .content child
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw: any[] = tab?.videos ?? tab?.items ?? tab?.contents ?? []
     return raw
       .map((item: any) => {
-        const v = item?.content ?? item   // unwrap RichItem / LockupView
-        const id = v?.id ?? v?.video_id
+        const v = item?.content ?? item   // unwrap RichItem wrapper if present
+        // Classic Video/GridVideo uses video_id; new LockupView uses content_id
+        const id: string | undefined = v?.video_id ?? v?.content_id
         if (!id) return null
-        const thumbs: Array<{ url: string }> = v?.thumbnails ?? v?.thumbnail ?? []
+        // LockupView (new YouTube design) stores title in metadata.title.text
+        const title: string =
+          v?.title?.text ?? v?.metadata?.title?.text ?? v?.title ?? ''
+        // LockupView stores thumbnails in content_image.image; classic uses thumbnails
+        const thumbs: Array<{ url: string }> =
+          v?.thumbnails ?? v?.content_image?.image ?? v?.thumbnail ?? []
         return {
           video_id: id,
-          title: v?.title?.text ?? v?.title ?? '',
+          title,
           thumbnail: thumbs.length > 0 ? thumbs[thumbs.length - 1].url : '',
           duration: v?.duration?.seconds ?? v?.duration?.total_time ?? 0,
           view_count_text: v?.view_count?.text ?? v?.short_view_count?.text ?? '',
@@ -342,11 +361,30 @@ function createWindow() {
   }
 }
 
+const _invHeaders = {
+  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0',
+  'Accept': 'application/json',
+}
+
+function registerInvidiousHandlers() {
+  ipcMain.handle('invidious:fetch', async (_event, url: string) => {
+    const res = await fetch(url, { headers: _invHeaders })
+    if (!res.ok) throw new Error(`Invidious API error ${res.status}`)
+    return res.json()
+  })
+  ipcMain.handle('invidious:fetchInstances', async () => {
+    const res = await fetch('https://api.invidious.io/instances.json', { headers: _invHeaders })
+    if (!res.ok) throw new Error(`Failed to fetch instance list: ${res.status}`)
+    return res.json()
+  })
+}
+
 app.whenReady().then(() => {
   registerAvatarHandlers()
   registerYtdlpHandlers()
   registerYoutubeJsHandlers()
   registerFreetubeHandlers()
+  registerInvidiousHandlers()
   createWindow()
 
   app.on('activate', () => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTheme } from '../../contexts/ThemeContext'
 import { pluginManager } from '../../plugins/manager'
+import { InvidiousPlugin, fetchInvidiousInstances, type InvidiousInstanceInfo } from '../../plugins/invidious/index'
 import { saveSettings, getSettings, subscribe, recordWatch } from '../../db/index'
 import { downloadAvatar } from '../../utils/avatar'
 import PageLayout from '../../components/PageLayout'
@@ -47,12 +48,59 @@ export default function Settings() {
   const [importSubs, setImportSubs] = useState(true)
   const [importHist, setImportHist] = useState(true)
 
+  const [ytCookieDraft, setYtCookieDraft] = useState('')
+  const [ytCookieSaved, setYtCookieSaved] = useState(false)
+
+  const [invInstance, setInvInstance] = useState('')
+  const [invDraft, setInvDraft] = useState('')
+  const [invInstances, setInvInstances] = useState<InvidiousInstanceInfo[]>([])
+  const [invFetchState, setInvFetchState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+
   useEffect(() => {
     getSettings().then(s => {
       setActivePluginState(s.activePlugin)
       setWatchedStyleState(s.watchedVideoStyle ?? 'normal')
+      setYtCookieDraft(s.ytCookie ?? '')
+      setYtCookieSaved(!!(s.ytCookie))
+      const inst = s.invidiousInstance ?? ''
+      setInvInstance(inst)
+      setInvDraft(inst)
     }).catch(() => {})
   }, [])
+
+  function handleSaveCookie() {
+    const cookie = ytCookieDraft.trim()
+    saveSettings({ ytCookie: cookie }).catch(() => {})
+    window.ytjs?.setCookie(cookie)
+    setYtCookieSaved(!!cookie)
+  }
+
+  function handleClearCookie() {
+    setYtCookieDraft('')
+    saveSettings({ ytCookie: '' }).catch(() => {})
+    window.ytjs?.setCookie('')
+    setYtCookieSaved(false)
+  }
+
+  function handleSaveInstance(url: string) {
+    const trimmed = url.trim().replace(/\/+$/, '')
+    setInvInstance(trimmed)
+    setInvDraft(trimmed)
+    InvidiousPlugin.setInstance(trimmed)
+    saveSettings({ invidiousInstance: trimmed }).catch(() => {})
+  }
+
+  async function handleDiscoverInstances() {
+    setInvFetchState('loading')
+    setInvInstances([])
+    try {
+      const list = await fetchInvidiousInstances()
+      setInvInstances(list.slice(0, 20))
+      setInvFetchState('done')
+    } catch {
+      setInvFetchState('error')
+    }
+  }
 
   function handlePluginChange(id: string) {
     try {
@@ -181,6 +229,89 @@ export default function Settings() {
               <p>{activePluginInfo.description}</p>
             </div>
           )}
+        </section>
+
+        {/* ── Invidious ── */}
+        <section className="settings-section">
+          <h3 className="settings-section-title">Invidious Instance</h3>
+          <p className="inv-hint">
+            Choose a public Invidious instance or enter your own. The instance must have CORS enabled.
+          </p>
+          {invInstance && (
+            <p className="inv-current">
+              Active: <span className="inv-current-url">{invInstance}</span>
+            </p>
+          )}
+          <div className="inv-input-row">
+            <input
+              className="inv-url-input"
+              type="url"
+              placeholder="https://invidious.example.com"
+              value={invDraft}
+              onChange={e => setInvDraft(e.target.value)}
+              spellCheck={false}
+            />
+            <Button
+              onClick={() => handleSaveInstance(invDraft)}
+              disabled={!invDraft.trim() || invDraft.trim() === invInstance}
+            >
+              Save
+            </Button>
+          </div>
+
+          <div className="inv-discover-row">
+            <Button onClick={handleDiscoverInstances} disabled={invFetchState === 'loading'}>
+              {invFetchState === 'loading' ? 'Searching…' : 'Find public instances'}
+            </Button>
+            {invFetchState === 'error' && (
+              <span className="inv-error">Failed to fetch instance list</span>
+            )}
+          </div>
+
+          {invFetchState === 'done' && invInstances.length > 0 && (
+            <div className="inv-instance-list">
+              {invInstances.map(inst => (
+                <button
+                  key={inst.uri}
+                  className={`inv-instance-row${inst.uri === invInstance ? ' inv-instance-active' : ''}`}
+                  onClick={() => handleSaveInstance(inst.uri)}
+                  type="button"
+                >
+                  <span className="inv-instance-flag">{inst.flag}</span>
+                  <span className="inv-instance-uri">{inst.uri.replace('https://', '')}</span>
+                  <span className="inv-instance-region">{inst.region}</span>
+                  <span className="inv-instance-uptime">{inst.uptime.toFixed(1)}%</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ── YouTube Account ── */}
+        <section className="settings-section">
+          <h3 className="settings-section-title">YouTube Account</h3>
+          <p className="yt-cookie-hint">
+            Paste your YouTube session cookie to enable high-quality streams (720p+).
+            In a browser signed into YouTube, open DevTools → Network → copy the full
+            <code> Cookie:</code> header value from any youtube.com request.
+          </p>
+          <textarea
+            className="yt-cookie-input"
+            rows={3}
+            placeholder="VISITOR_INFO1_LIVE=...; __Secure-1PSID=..."
+            value={ytCookieDraft}
+            onChange={e => setYtCookieDraft(e.target.value)}
+            spellCheck={false}
+          />
+          <div className="yt-cookie-actions">
+            <Button onClick={handleSaveCookie} disabled={ytCookieDraft.trim() === ''}>
+              Save cookie
+            </Button>
+            {ytCookieSaved && (
+              <Button onClick={handleClearCookie}>Clear</Button>
+            )}
+            {ytCookieSaved && <span className="yt-cookie-status">Cookie saved</span>}
+          </div>
         </section>
 
         {/* ── Import from FreeTube ── */}

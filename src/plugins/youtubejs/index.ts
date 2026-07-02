@@ -26,6 +26,7 @@ interface YtjsRawChannelPlaylist {
 declare global {
   interface Window {
     ytjs?: {
+      setCookie(cookie: string): Promise<void>
       getInfo(videoId: string): Promise<YtjsRawInfo>
       search(query: string, limit?: number): Promise<YtjsRawResult[]>
       getChannelInfo(channelId: string): Promise<YtjsRawChannelInfo>

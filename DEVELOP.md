@@ -36,7 +36,7 @@ Video data (metadata, stream URLs, search) is fetched through a plugin. Each plu
 |--------|-----------|-------------|
 | `ytdlp` | Electron IPC → local `yt-dlp` binary | Desktop only |
 | `youtubejs` | Electron IPC → Innertube (main process, Node vm for decipher) | Desktop only |
-| `invidious` | HTTP to a user-configured Invidious instance | All platforms _(planned)_ |
+| `invidious` | Electron IPC → main-process `fetch` (bypasses CORS) to user-configured Invidious instance | All platforms |
 
 Adding a new backend = implementing `VideoPlugin` in `src/plugins/<name>/index.ts` and calling `pluginManager.register(new MyPlugin())` in `src/main.tsx`.
 
@@ -45,11 +45,12 @@ Adding a new backend = implementing `VideoPlugin` in `src/plugins/<name>/index.t
 ```
 NeoTube/
 ├── electron/              # Electron main + preload (desktop wrapper)
-│   ├── main.ts            # IPC handlers (avatar download, yt-dlp, youtubejs, freetube, window)
+│   ├── main.ts            # IPC handlers (avatar download, yt-dlp, youtubejs, invidious, freetube, window)
 │   ├── preload.ts         # contextBridge API surface
 │   │                      #   window.electron  — platform info + downloadAvatar
 │   │                      #   window.ytdlp     — yt-dlp bridge
-│   │                      #   window.ytjs      — youtube.js bridge
+│   │                      #   window.ytjs      — youtube.js bridge (setCookie, getInfo, search, …)
+│   │                      #   window.invidious — Invidious bridge (fetch, fetchInstances)
 │   │                      #   window.freetube  — FreeTube data import
 │   └── tsconfig.json
 ├── src/
@@ -72,12 +73,13 @@ NeoTube/
 │   │   ├── Subscriptions.tsx  # Subscription feed — videos from all subscribed channels (route: /subscriptions)
 │   │   ├── Channels.tsx       # Subscribed channel grid with search filter (route: /channels)
 │   │   ├── History.tsx        # Watch history grid (route: /history)
-│   │   └── Settings.tsx       # Theme, plugin, watched-video style, FreeTube import
+│   │   └── Settings.tsx       # Theme, plugin, watched-video style, Invidious instance, YouTube cookie, FreeTube import
 │   ├── plugins/           # Video backend plugin system
 │   │   ├── types.ts       # VideoPlugin interface + shared domain types
 │   │   ├── manager.ts     # PluginManager singleton
 │   │   ├── ytdlp/         # yt-dlp plugin (Electron IPC)
-│   │   └── youtubejs/     # youtube.js plugin (Electron IPC via Innertube)
+│   │   ├── youtubejs/     # youtube.js plugin (Electron IPC via Innertube)
+│   │   └── invidious/     # Invidious plugin (Electron IPC fetch bridge; instance discovery)
 │   ├── services/
 │   │   └── videoCache.ts  # Stale-while-revalidate channel video cache
 │   │                      #   getOrFetchChannelVideos — serve cache + background refresh via onFresh callback
@@ -144,9 +146,10 @@ The sidebar channel list is sorted alphabetically and scrollable (scrollbar hidd
 ## Features
 
 ### Playback
-- Video playback via pluggable backend (yt-dlp or youtube.js on Desktop)
+- Video playback via pluggable backend (yt-dlp, youtube.js, or Invidious)
 - Quality selection from available streams
 - Watch page: title, channel link, subscribe button, view count, collapsible description
+- YouTube cookie auth (Settings → YouTube Account): paste session cookie to unlock 720p+ adaptive streams via youtube.js
 
 ### Search & Browse
 - Universal topbar search: YouTube URL → direct watch, search term → results page
@@ -176,8 +179,10 @@ The sidebar channel list is sorted alphabetically and scrollable (scrollbar hidd
 
 ### Settings
 - Light / dark theme, persisted in PouchDB and cached in localStorage
-- Active plugin selector (yt-dlp or youtube.js)
+- Active plugin selector (yt-dlp, youtube.js, or Invidious)
 - Previously watched video style (Normal / Dim / Hide)
+- Invidious instance: manual URL entry or auto-discovery from public instance list (filters for HTTPS + CORS + API, sorted by uptime)
+- YouTube session cookie: stored in PouchDB, restored on startup, forwarded to Innertube for high-quality streams
 - FreeTube data import
 
 ---
@@ -228,11 +233,14 @@ _To be defined._
 - [x] Watch page wired to active plugin
 - [x] yt-dlp added to Nix dev shell
 
-### Phase 3 — Additional Plugins ✓ (partial)
+### Phase 3 — Additional Plugins ✓
 - [x] youtube.js plugin (Electron IPC via Innertube, Node vm for URL decipher)
+- [x] youtube.js: ANDROID client for direct stream URLs; YouTube cookie auth for 720p+ adaptive streams
+- [x] youtube.js: LockupView node support (new YouTube channel design — `content_id`, `metadata.title.text`, `content_image.image`)
 - [x] Plugin selector in Settings page
-- [ ] Invidious plugin (HTTP, all platforms)
-- [ ] Configurable Invidious instance URL
+- [x] Invidious plugin (Electron IPC fetch bridge to avoid CORS; adaptive + muxed stream mapping)
+- [x] Invidious instance URL: manual entry + auto-discovery (filters HTTPS/CORS/API, top 20 by uptime)
+- [x] YouTube session cookie: persisted in PouchDB, restored on startup via `ytjs:setCookie` IPC
 
 ### Phase 4 — Search & Browse ✓
 - [x] Topbar search (all pages): URL → Watch, query → Search results

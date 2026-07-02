@@ -31,7 +31,16 @@ contextBridge.exposeInMainWorld('ytdlp', {
     ipcRenderer.invoke('ytdlp:channelPlaylists', channelId, limit ?? 20),
 })
 
+contextBridge.exposeInMainWorld('invidious', {
+  fetch: (url: string): Promise<unknown> =>
+    ipcRenderer.invoke('invidious:fetch', url),
+  fetchInstances: (): Promise<unknown> =>
+    ipcRenderer.invoke('invidious:fetchInstances'),
+})
+
 contextBridge.exposeInMainWorld('ytjs', {
+  setCookie: (cookie: string) =>
+    ipcRenderer.invoke('ytjs:setCookie', cookie),
   getInfo: (videoId: string) =>
     ipcRenderer.invoke('ytjs:info', videoId),
   search: (query: string, limit?: number) =>
