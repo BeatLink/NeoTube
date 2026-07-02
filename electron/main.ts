@@ -1,10 +1,9 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, session } from 'electron'
 import { fileURLToPath } from 'url'
 import { spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs/promises'
 import os from 'os'
-import * as ytjsHandlers from './ytjs-handlers'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = process.env.NODE_ENV === 'development'
@@ -69,17 +68,43 @@ function registerYtdlpHandlers() {
   })
 }
 
-// ─── youtube.js (Innertube) ───────────────────────────────────────────────────
-// Runs in the main process to avoid browser CORS restrictions.
-// Handler logic lives in ytjs-handlers.ts (shared with the mobile Node.js thread).
+// ─── CORS headers ────────────────────────────────────────────────────────────
+// youtube.js (Innertube) runs in the renderer. YouTube's API doesn't allow
+// cross-origin requests from arbitrary origins, so we:
+//   1. Strip Origin from outgoing requests (server skips CORS enforcement)
+//   2. Inject Access-Control-Allow-Origin: * into responses (browser accepts them)
+//   3. Force OPTIONS preflight responses to 200 so the browser proceeds
 
-function registerYoutubeJsHandlers() {
-  ipcMain.handle('ytjs:setCookie', (_event, cookie: string) => ytjsHandlers.setCookie(cookie))
-  ipcMain.handle('ytjs:info', (_event, videoId: string) => ytjsHandlers.getInfo(videoId))
-  ipcMain.handle('ytjs:search', (_event, query: string, limit: number) => ytjsHandlers.search(query, limit))
-  ipcMain.handle('ytjs:channelInfo', (_event, channelId: string) => ytjsHandlers.getChannelInfo(channelId))
-  ipcMain.handle('ytjs:channelVideos', (_event, channelId: string, limit = 30) => ytjsHandlers.getChannelVideos(channelId, limit))
-  ipcMain.handle('ytjs:channelPlaylists', (_event, channelId: string, limit = 20) => ytjsHandlers.getChannelPlaylists(channelId, limit))
+function registerCorsHeaders() {
+  const urls = [
+    'https://www.youtube.com/*',
+    'https://music.youtube.com/*',
+    'https://*.googlevideo.com/*',
+    'https://i.ytimg.com/*',
+    'https://yt3.ggpht.com/*',
+    'https://yt3.googleusercontent.com/*',
+  ]
+
+  session.defaultSession.webRequest.onBeforeSendHeaders({ urls }, (details, callback) => {
+    const headers = { ...details.requestHeaders }
+    delete headers['Origin']
+    delete headers['origin']
+    callback({ requestHeaders: headers })
+  })
+
+  session.defaultSession.webRequest.onHeadersReceived({ urls }, (details, callback) => {
+    const isPreflight = details.method === 'OPTIONS'
+    const statusOk = !!details.statusLine?.match(/HTTP\/\S+ 2\d\d/)
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'access-control-allow-origin': ['*'],
+        'access-control-allow-headers': ['*'],
+        'access-control-allow-methods': ['GET, POST, OPTIONS, PUT, DELETE'],
+      },
+      ...(isPreflight && !statusOk ? { statusLine: 'HTTP/1.1 200 OK' } : {}),
+    })
+  })
 }
 
 // ─── Avatar download ─────────────────────────────────────────────────────────
@@ -207,34 +232,12 @@ function createWindow() {
   }
 }
 
-const _invHeaders = {
-  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0',
-  'Accept': 'application/json',
-}
-
-async function jsonFetch(url: string): Promise<unknown> {
-  const res = await fetch(url, { headers: _invHeaders })
-  const ct = res.headers.get('content-type') ?? ''
-  if (!res.ok || !ct.includes('application/json')) {
-    const body = await res.text()
-    throw new Error(`Invidious API error ${res.status} from ${url}: ${body.slice(0, 120)}`)
-  }
-  return res.json()
-}
-
-function registerInvidiousHandlers() {
-  ipcMain.handle('invidious:fetch', (_event, url: string) => jsonFetch(url))
-  ipcMain.handle('invidious:fetchInstances', () =>
-    jsonFetch('https://api.invidious.io/instances.json')
-  )
-}
 
 app.whenReady().then(() => {
+  registerCorsHeaders()
   registerAvatarHandlers()
   registerYtdlpHandlers()
-  registerYoutubeJsHandlers()
   registerFreetubeHandlers()
-  registerInvidiousHandlers()
   createWindow()
 
   app.on('activate', () => {

@@ -35,8 +35,7 @@ Video data (metadata, stream URLs, search) is fetched through a plugin. Each plu
 | Plugin | Transport | Availability |
 |--------|-----------|-------------|
 | `ytdlp` | Electron IPC → local `yt-dlp` binary | Desktop only |
-| `youtubejs` | Electron IPC → Innertube (main process, Node vm for decipher) | Desktop only |
-| `invidious` | Electron IPC → main-process `fetch` (bypasses CORS) to user-configured Invidious instance | All platforms |
+| `youtubejs` | Direct Innertube call in renderer — CORS handled by `session.webRequest` on Electron, `CapacitorHttp` on mobile | Desktop + Mobile |
 
 Adding a new backend = implementing `VideoPlugin` in `src/plugins/<name>/index.ts` and calling `pluginManager.register(new MyPlugin())` in `src/main.tsx`.
 
@@ -45,12 +44,10 @@ Adding a new backend = implementing `VideoPlugin` in `src/plugins/<name>/index.t
 ```
 NeoTube/
 ├── electron/              # Electron main + preload (desktop wrapper)
-│   ├── main.ts            # IPC handlers (avatar download, yt-dlp, youtubejs, invidious, freetube, window)
+│   ├── main.ts            # IPC handlers (avatar download, yt-dlp, freetube, window) + session.webRequest CORS
 │   ├── preload.ts         # contextBridge API surface
 │   │                      #   window.electron  — platform info + downloadAvatar
 │   │                      #   window.ytdlp     — yt-dlp bridge
-│   │                      #   window.ytjs      — youtube.js bridge (setCookie, getInfo, search, …)
-│   │                      #   window.invidious — Invidious bridge (fetch, fetchInstances)
 │   │                      #   window.freetube  — FreeTube data import
 │   └── tsconfig.json
 ├── src/
@@ -73,13 +70,12 @@ NeoTube/
 │   │   ├── Subscriptions.tsx  # Subscription feed — videos from all subscribed channels (route: /subscriptions)
 │   │   ├── Channels.tsx       # Subscribed channel grid with search filter (route: /channels)
 │   │   ├── History.tsx        # Watch history grid (route: /history)
-│   │   └── Settings.tsx       # Theme, plugin, watched-video style, Invidious instance, YouTube cookie, FreeTube import
+│   │   └── Settings.tsx       # Theme, plugin, watched-video style, YouTube cookie, FreeTube import
 │   ├── plugins/           # Video backend plugin system
 │   │   ├── types.ts       # VideoPlugin interface + shared domain types
 │   │   ├── manager.ts     # PluginManager singleton
 │   │   ├── ytdlp/         # yt-dlp plugin (Electron IPC)
-│   │   ├── youtubejs/     # youtube.js plugin (Electron IPC via Innertube)
-│   │   └── invidious/     # Invidious plugin (Electron IPC fetch bridge; instance discovery)
+│   │   └── youtubejs/     # youtube.js plugin — innertube.ts runs in renderer; CORS via session.webRequest / CapacitorHttp
 │   ├── services/
 │   │   └── videoCache.ts  # Stale-while-revalidate channel video cache
 │   │                      #   getOrFetchChannelVideos — serve cache + background refresh via onFresh callback
@@ -136,7 +132,7 @@ The sidebar channel list is sorted alphabetically and scrollable (scrollbar hidd
 | Routing | React Router 7 |
 | Local database | PouchDB 9 (pouchdb-browser) |
 | P2P sync | PouchDB replication |
-| Video backend | Plugin system (yt-dlp / Invidious / youtube.js) |
+| Video backend | Plugin system (yt-dlp / youtube.js) |
 | Mobile wrapper | Capacitor 8 |
 | Desktop wrapper | Electron 43 |
 | Testing | Vitest + Testing Library |
@@ -148,7 +144,7 @@ The sidebar channel list is sorted alphabetically and scrollable (scrollbar hidd
 ## Features
 
 ### Playback
-- Video playback via pluggable backend (yt-dlp, youtube.js, or Invidious)
+- Video playback via pluggable backend (yt-dlp or youtube.js)
 - Quality selection from available streams
 - Watch page: title, channel link, subscribe button, view count, collapsible description
 - YouTube cookie auth (Settings → YouTube Account): paste session cookie to unlock 720p+ adaptive streams via youtube.js
@@ -181,9 +177,8 @@ The sidebar channel list is sorted alphabetically and scrollable (scrollbar hidd
 
 ### Settings
 - Light / dark theme, persisted in PouchDB and cached in localStorage
-- Active plugin selector (yt-dlp, youtube.js, or Invidious)
+- Active plugin selector (yt-dlp, youtube.js)
 - Previously watched video style (Normal / Dim / Hide)
-- Invidious instance: manual URL entry or auto-discovery from public instance list (filters for HTTPS + CORS + API, sorted by uptime)
 - YouTube session cookie: stored in PouchDB, restored on startup, forwarded to Innertube for high-quality streams
 - FreeTube data import
 
@@ -240,9 +235,8 @@ _To be defined._
 - [x] youtube.js: ANDROID client for direct stream URLs; YouTube cookie auth for 720p+ adaptive streams
 - [x] youtube.js: LockupView node support (new YouTube channel design — `content_id`, `metadata.title.text`, `content_image.image`)
 - [x] Plugin selector in Settings page
-- [x] Invidious plugin (Electron IPC fetch bridge to avoid CORS; adaptive + muxed stream mapping)
-- [x] Invidious instance URL: manual entry + auto-discovery (filters HTTPS/CORS/API, top 20 by uptime)
-- [x] YouTube session cookie: persisted in PouchDB, restored on startup via `ytjs:setCookie` IPC
+- [x] youtube.js: runs in renderer — CORS via `session.webRequest` on Electron, `CapacitorHttp` on mobile
+- [x] YouTube session cookie: persisted in PouchDB, restored on startup via `innertube.setCookie()`
 
 ### Phase 4 — Search & Browse ✓
 - [x] Topbar search (all pages): URL → Watch, query → Search results

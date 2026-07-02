@@ -11,13 +11,13 @@ import Channels from './pages/Channels'
 import History from './pages/History'
 import Settings from './pages/Settings'
 import { getSettings } from './db'
+import { setCookie as ytjsSetCookie } from './plugins/youtubejs/innertube'
 import './App.css'
 
 export default function App() {
   useEffect(() => {
-    if (!window.ytjs?.setCookie) return
     getSettings().then(s => {
-      window.ytjs?.setCookie(s.ytCookie ?? '')
+      if (s.ytCookie) ytjsSetCookie(s.ytCookie)
     }).catch(() => {})
   }, [])
 

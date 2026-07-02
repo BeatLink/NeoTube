@@ -1,0 +1,23 @@
+{
+  "name": "neotube-server",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "node --import tsx/esm src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.0",
+    "fastify": "^5.0.0",
+    "pouchdb": "^9.0.0",
+    "youtubei.js": "^17.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/pouchdb": "^6.4.2",
+    "tsx": "^4.0.0",
+    "typescript": "~6.0.2"
+  }
+}

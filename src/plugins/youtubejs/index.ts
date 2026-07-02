@@ -1,40 +1,5 @@
+import * as innertube from './innertube'
 import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, ChannelPlaylist, StreamUrl } from '../types'
-
-interface YtjsRawChannelInfo {
-  channel_id: string
-  name: string
-  avatar: string
-  description: string
-  subscriber_count_text?: string
-}
-
-interface YtjsRawChannelVideo {
-  video_id: string
-  title: string
-  thumbnail: string
-  duration: number
-  view_count_text?: string
-}
-
-interface YtjsRawChannelPlaylist {
-  playlist_id: string
-  title: string
-  thumbnail: string
-  video_count_text?: string | null
-}
-
-declare global {
-  interface Window {
-    ytjs?: {
-      setCookie(cookie: string): Promise<void>
-      getInfo(videoId: string): Promise<YtjsRawInfo>
-      search(query: string, limit?: number): Promise<YtjsRawResult[]>
-      getChannelInfo(channelId: string): Promise<YtjsRawChannelInfo>
-      getChannelVideos(channelId: string, limit?: number): Promise<YtjsRawChannelVideo[]>
-      getChannelPlaylists(channelId: string, limit?: number): Promise<YtjsRawChannelPlaylist[]>
-    }
-  }
-}
 
 interface YtjsRawFormat {
   url?: string
@@ -44,27 +9,6 @@ interface YtjsRawFormat {
   height?: number
   audio_channels?: number
   bitrate?: number
-}
-
-interface YtjsRawInfo {
-  id?: string
-  title?: string
-  channel_id?: string
-  channel_name?: string
-  duration?: number
-  view_count?: number
-  short_description?: string
-  thumbnail?: string
-  formats: YtjsRawFormat[]
-}
-
-interface YtjsRawResult {
-  video_id?: string
-  title?: string
-  channel_name?: string
-  channel_id?: string
-  thumbnail?: string
-  length_text?: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -82,18 +26,17 @@ function parseDuration(text?: string | null): number {
 export class YoutubeJsPlugin implements VideoPlugin {
   readonly id = 'youtubejs'
   readonly name = 'youtube.js (Local)'
-  readonly description = 'Reverse-engineered YouTube client. Requires Electron — runs in the main process to bypass CORS.'
+  readonly description = 'Reverse-engineered YouTube client. Runs in-browser — CORS handled via Electron session headers or native HTTP on Capacitor.'
 
   async isAvailable(): Promise<boolean> {
-    return !!window.ytjs
+    return true
   }
 
   async getVideoInfo(videoId: string): Promise<VideoInfo> {
-    if (!window.ytjs) throw new Error('youtube.js IPC bridge not available')
-    const raw = await window.ytjs.getInfo(videoId)
+    const raw = await innertube.getInfo(videoId)
 
     const streams: StreamUrl[] = (raw.formats ?? [])
-      .map((f): StreamUrl | null => {
+      .map((f: YtjsRawFormat): StreamUrl | null => {
         if (!f.url) return null
         const mime = f.mime_type ?? ''
         const ext = mime.split('/')[1]?.split(';')[0] ?? 'mp4'
@@ -120,8 +63,7 @@ export class YoutubeJsPlugin implements VideoPlugin {
   }
 
   async search(query: string, limit = 10): Promise<SearchResult[]> {
-    if (!window.ytjs) throw new Error('youtube.js IPC bridge not available')
-    const results = await window.ytjs.search(query, limit)
+    const results = await innertube.search(query, limit)
     return results.map(v => ({
       videoId: v.video_id ?? '',
       title: v.title ?? '',
@@ -134,9 +76,7 @@ export class YoutubeJsPlugin implements VideoPlugin {
   }
 
   async getChannelInfo(channelId: string): Promise<ChannelInfo> {
-    if (!window.ytjs) throw new Error('youtube.js IPC bridge not available')
-    const raw = await window.ytjs.getChannelInfo(channelId)
-    // subscriber_count_text looks like "1.2M subscribers" or "1,234,567 subscribers"
+    const raw = await innertube.getChannelInfo(channelId)
     let subscriberCount: number | undefined
     if (raw.subscriber_count_text) {
       const num = parseFloat(raw.subscriber_count_text.replace(/,/g, ''))
@@ -158,8 +98,7 @@ export class YoutubeJsPlugin implements VideoPlugin {
   }
 
   async getChannelVideos(channelId: string, limit = 30): Promise<SearchResult[]> {
-    if (!window.ytjs) throw new Error('youtube.js IPC bridge not available')
-    const items = await window.ytjs.getChannelVideos(channelId, limit)
+    const items = await innertube.getChannelVideos(channelId, limit)
     return items.map(v => ({
       videoId: v.video_id,
       title: v.title,
@@ -172,8 +111,7 @@ export class YoutubeJsPlugin implements VideoPlugin {
   }
 
   async getChannelPlaylists(channelId: string, limit = 20): Promise<ChannelPlaylist[]> {
-    if (!window.ytjs) throw new Error('youtube.js IPC bridge not available')
-    const items = await window.ytjs.getChannelPlaylists(channelId, limit)
+    const items = await innertube.getChannelPlaylists(channelId, limit)
     return items.map(p => {
       const countText = p.video_count_text ?? ''
       const countNum = parseInt(countText.replace(/\D/g, ''), 10)

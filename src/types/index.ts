@@ -82,5 +82,4 @@ export interface UserSettings {
   channelsHideWatched: boolean
   channelPageHideWatched: boolean
   ytCookie?: string
-  invidiousInstance?: string
 }

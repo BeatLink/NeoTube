@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTheme } from '../../contexts/ThemeContext'
 import { pluginManager } from '../../plugins/manager'
-import { InvidiousPlugin, fetchInvidiousInstances, type InvidiousInstanceInfo } from '../../plugins/invidious/index'
 import { saveSettings, getSettings, subscribe, recordWatch } from '../../db/index'
+import { setCookie as ytjsSetCookie } from '../../plugins/youtubejs/innertube'
 import { downloadAvatar } from '../../utils/avatar'
 import PageLayout from '../../components/PageLayout'
 import MenuButton from '../../components/MenuButton'
@@ -51,55 +51,27 @@ export default function Settings() {
   const [ytCookieDraft, setYtCookieDraft] = useState('')
   const [ytCookieSaved, setYtCookieSaved] = useState(false)
 
-  const [invInstance, setInvInstance] = useState('')
-  const [invDraft, setInvDraft] = useState('')
-  const [invInstances, setInvInstances] = useState<InvidiousInstanceInfo[]>([])
-  const [invFetchState, setInvFetchState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
-
   useEffect(() => {
     getSettings().then(s => {
       setActivePluginState(s.activePlugin)
       setWatchedStyleState(s.watchedVideoStyle ?? 'normal')
       setYtCookieDraft(s.ytCookie ?? '')
       setYtCookieSaved(!!(s.ytCookie))
-      const inst = s.invidiousInstance ?? ''
-      setInvInstance(inst)
-      setInvDraft(inst)
     }).catch(() => {})
   }, [])
 
   function handleSaveCookie() {
     const cookie = ytCookieDraft.trim()
     saveSettings({ ytCookie: cookie }).catch(() => {})
-    window.ytjs?.setCookie(cookie)
+    ytjsSetCookie(cookie)
     setYtCookieSaved(!!cookie)
   }
 
   function handleClearCookie() {
     setYtCookieDraft('')
     saveSettings({ ytCookie: '' }).catch(() => {})
-    window.ytjs?.setCookie('')
+    ytjsSetCookie('')
     setYtCookieSaved(false)
-  }
-
-  function handleSaveInstance(url: string) {
-    const trimmed = url.trim().replace(/\/+$/, '')
-    setInvInstance(trimmed)
-    setInvDraft(trimmed)
-    InvidiousPlugin.setInstance(trimmed)
-    saveSettings({ invidiousInstance: trimmed }).catch(() => {})
-  }
-
-  async function handleDiscoverInstances() {
-    setInvFetchState('loading')
-    setInvInstances([])
-    try {
-      const list = await fetchInvidiousInstances()
-      setInvInstances(list.slice(0, 20))
-      setInvFetchState('done')
-    } catch {
-      setInvFetchState('error')
-    }
   }
 
   function handlePluginChange(id: string) {
@@ -227,62 +199,6 @@ export default function Settings() {
           {activePluginInfo && (
             <div className="plugin-info">
               <p>{activePluginInfo.description}</p>
-            </div>
-          )}
-        </section>
-
-        {/* ── Invidious ── */}
-        <section className="settings-section">
-          <h3 className="settings-section-title">Invidious Instance</h3>
-          <p className="inv-hint">
-            Choose a public Invidious instance or enter your own. The instance must have the API enabled (✅) to work with NeoTube.
-          </p>
-          {invInstance && (
-            <p className="inv-current">
-              Active: <span className="inv-current-url">{invInstance}</span>
-            </p>
-          )}
-          <div className="inv-input-row">
-            <input
-              className="inv-url-input"
-              type="url"
-              placeholder="https://invidious.example.com"
-              value={invDraft}
-              onChange={e => setInvDraft(e.target.value)}
-              spellCheck={false}
-            />
-            <Button
-              onClick={() => handleSaveInstance(invDraft)}
-              disabled={!invDraft.trim() || invDraft.trim() === invInstance}
-            >
-              Save
-            </Button>
-          </div>
-
-          <div className="inv-discover-row">
-            <Button onClick={handleDiscoverInstances} disabled={invFetchState === 'loading'}>
-              {invFetchState === 'loading' ? 'Searching…' : 'Find public instances'}
-            </Button>
-            {invFetchState === 'error' && (
-              <span className="inv-error">Failed to fetch instance list</span>
-            )}
-          </div>
-
-          {invFetchState === 'done' && invInstances.length > 0 && (
-            <div className="inv-instance-list">
-              {invInstances.map(inst => (
-                <button
-                  key={inst.uri}
-                  className={`inv-instance-row${inst.uri === invInstance ? ' inv-instance-active' : ''}`}
-                  onClick={() => handleSaveInstance(inst.uri)}
-                  type="button"
-                >
-                  <span className="inv-instance-flag">{inst.flag}</span>
-                  <span className="inv-instance-uri">{inst.uri.replace('https://', '')}</span>
-                  <span className="inv-instance-region">{inst.region}</span>
-                  <span className="inv-instance-uptime">{inst.hasApi ? '✅' : '❌'} {inst.uptime.toFixed(1)}%</span>
-                </button>
-              ))}
             </div>
           )}
         </section>
