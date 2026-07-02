@@ -100,7 +100,9 @@ export default function Settings() {
         for (const entry of data.history) {
           await recordWatch(
             entry.videoId, entry.title, entry.channelId,
-            entry.channelName, entry.thumbnail, entry.duration,
+            entry.channelName,
+            entry.thumbnail || `https://i.ytimg.com/vi/${entry.videoId}/hqdefault.jpg`,
+            entry.duration,
           )
           histImported++
         }

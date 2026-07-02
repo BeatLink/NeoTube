@@ -308,7 +308,7 @@ function registerFreetubeHandlers() {
           title: e.title ?? '',
           channelId: e.authorId ?? '',
           channelName: e.author ?? '',
-          thumbnail: e.videoThumbnails?.[0]?.url ?? '',
+          thumbnail: e.videoThumbnails?.[0]?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
           duration: e.lengthSeconds ?? 0,
           // timeWatched is a Unix timestamp in seconds
           watchedAt: e.timeWatched
