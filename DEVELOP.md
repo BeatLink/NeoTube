@@ -118,8 +118,10 @@ NeoTube/
 ```
 
 The topbar search input accepts:
-- **YouTube URL** → navigates directly to `/watch/:videoId`
+- **YouTube video URL** (`/watch?v=`, `/shorts/`, `youtu.be/`) → navigates directly to `/watch/:videoId`
+- **YouTube channel URL** (`/channel/UC…`, `/@handle`, `/c/name`, `/user/name`) → navigates directly to `/channel/:channelId`
 - **Search term** → navigates to `/search?q=...`
+- Pasting a video or channel URL auto-submits immediately without pressing Search.
 
 The sidebar channel list is sorted alphabetically and scrollable (scrollbar hidden until hover).
 
@@ -152,7 +154,7 @@ The sidebar channel list is sorted alphabetically and scrollable (scrollbar hidd
 - YouTube cookie auth (Settings → YouTube Account): paste session cookie to unlock 720p+ adaptive streams via youtube.js
 
 ### Search & Browse
-- Universal topbar search: YouTube URL → direct watch, search term → results page
+- Universal topbar: video URL → Watch, channel URL (`/channel/`, `/@handle`, `/c/`, `/user/`) → Channel page, search term → results
 - Search results with thumbnail, duration, channel name (linked), view count
 - Previously-watched indicator on search results (normal / dim / hide, per Settings)
 - Channel page: avatar, name, subscriber count, collapsible description, subscribe button

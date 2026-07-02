@@ -366,17 +366,21 @@ const _invHeaders = {
   'Accept': 'application/json',
 }
 
+async function jsonFetch(url: string): Promise<unknown> {
+  const res = await fetch(url, { headers: _invHeaders })
+  const ct = res.headers.get('content-type') ?? ''
+  if (!res.ok || !ct.includes('application/json')) {
+    const body = await res.text()
+    throw new Error(`Invidious API error ${res.status} from ${url}: ${body.slice(0, 120)}`)
+  }
+  return res.json()
+}
+
 function registerInvidiousHandlers() {
-  ipcMain.handle('invidious:fetch', async (_event, url: string) => {
-    const res = await fetch(url, { headers: _invHeaders })
-    if (!res.ok) throw new Error(`Invidious API error ${res.status}`)
-    return res.json()
-  })
-  ipcMain.handle('invidious:fetchInstances', async () => {
-    const res = await fetch('https://api.invidious.io/instances.json', { headers: _invHeaders })
-    if (!res.ok) throw new Error(`Failed to fetch instance list: ${res.status}`)
-    return res.json()
-  })
+  ipcMain.handle('invidious:fetch', (_event, url: string) => jsonFetch(url))
+  ipcMain.handle('invidious:fetchInstances', () =>
+    jsonFetch('https://api.invidious.io/instances.json')
+  )
 }
 
 app.whenReady().then(() => {

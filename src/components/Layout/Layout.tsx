@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
 import { useTheme } from '../../contexts/ThemeContext'
-import { parseVideoId } from '../../utils/youtube'
+import { parseVideoId, parseChannelUrl } from '../../utils/youtube'
 import { getSubscriptions, subscribe } from '../../db/index'
 import { pluginManager } from '../../plugins/manager'
 import { downloadAvatar } from '../../utils/avatar'
@@ -58,7 +58,12 @@ export default function Layout() {
     if (videoId) {
       navigate(`/watch/${videoId}`)
     } else {
-      navigate(`/search?q=${encodeURIComponent(trimmed)}`)
+      const channelId = parseChannelUrl(trimmed)
+      if (channelId) {
+        navigate(`/channel/${encodeURIComponent(channelId)}`)
+      } else {
+        navigate(`/search?q=${encodeURIComponent(trimmed)}`)
+      }
     }
     setQuery('')
   }
@@ -105,7 +110,9 @@ export default function Layout() {
             onChange={e => setQuery(e.target.value)}
             onPaste={e => {
               const pasted = e.clipboardData.getData('text')
-              if (parseVideoId(pasted)) { e.preventDefault(); submit(pasted) }
+              if (parseVideoId(pasted) || parseChannelUrl(pasted)) {
+                e.preventDefault(); submit(pasted)
+              }
             }}
             aria-label="Search"
           />

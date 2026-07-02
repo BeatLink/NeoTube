@@ -40,3 +40,43 @@ export function parseVideoId(input: string): string | null {
 
   return null
 }
+
+/**
+ * Extracts a YouTube channel identifier from a channel URL.
+ * Returns the channel ID or handle (with @) to use as the route param,
+ * or null if the input is not a recognisable channel URL.
+ *
+ * Handles:
+ *   https://www.youtube.com/channel/UCxxxxxx   → "UCxxxxxx"
+ *   https://www.youtube.com/@handle            → "@handle"
+ *   https://www.youtube.com/c/customname       → "@customname"
+ *   https://www.youtube.com/user/username      → "@username"
+ */
+export function parseChannelUrl(input: string): string | null {
+  const trimmed = input.trim()
+  if (!trimmed) return null
+
+  try {
+    const url = new URL(trimmed)
+    const host = url.hostname.replace(/^www\.|^m\./, '')
+    if (host !== 'youtube.com') return null
+
+    const p = url.pathname
+
+    // /channel/UCxxxxxx
+    const channelMatch = p.match(/^\/channel\/(UC[A-Za-z0-9_-]+)/)
+    if (channelMatch) return channelMatch[1]
+
+    // /@handle
+    const handleMatch = p.match(/^\/@([A-Za-z0-9._-]+)/)
+    if (handleMatch) return `@${handleMatch[1]}`
+
+    // /c/name or /user/name — prefix with @ so the Channel page treats it as a handle
+    const legacyMatch = p.match(/^\/(c|user)\/([A-Za-z0-9._-]+)/)
+    if (legacyMatch) return `@${legacyMatch[2]}`
+  } catch {
+    // not a URL
+  }
+
+  return null
+}
