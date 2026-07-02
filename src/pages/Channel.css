@@ -45,18 +45,16 @@
   margin: 0;
 }
 
+/* Button component provides border-radius, cursor, transition */
 .channel-sub-btn {
   align-self: flex-start;
   padding: 8px 20px;
-  border-radius: 20px;
-  border: none;
-  background: var(--text);
-  color: var(--bg);
   font-size: 14px;
   font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
   margin-top: 4px;
+  background: var(--text);
+  color: var(--bg);
+  border-color: transparent;
 }
 
 .channel-sub-btn:hover { opacity: 0.8; }
@@ -64,8 +62,11 @@
 .channel-sub-btn.subscribed {
   background: var(--surface-hover);
   color: var(--text-muted);
-  border: 1px solid var(--border);
+  border-color: var(--border);
+  opacity: 1;
 }
+
+.channel-sub-btn.subscribed:hover { color: var(--text); opacity: 1; }
 
 .channel-description {
   border: 1px solid var(--border);
@@ -115,105 +116,8 @@
   border-bottom-color: var(--accent);
 }
 
-.channel-tab-toggle {
-  margin-left: auto;
-  padding: 5px 14px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  white-space: nowrap;
-}
-
-.channel-tab-toggle:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.channel-tab-toggle.active {
-  border-color: var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent);
-}
-
 .channel-tab-status {
   color: var(--text-muted);
   font-size: 0.9rem;
   margin: 16px 0;
 }
-
-/* ── Video / playlist grid ─────────────────────────────────────────────────── */
-
-.channel-grid {
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 20px;
-}
-
-.channel-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.channel-card-thumb-link {
-  display: block;
-  text-decoration: none;
-}
-
-.channel-card-thumb {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--border);
-}
-
-.channel-card-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.channel-card-thumb-blank {
-  width: 100%;
-  height: 100%;
-}
-
-.channel-card-duration {
-  position: absolute;
-  bottom: 4px;
-  right: 4px;
-  background: rgba(0, 0, 0, 0.8);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 5px;
-  border-radius: 3px;
-}
-
-.channel-card-playlist-thumb {
-  cursor: default;
-}
-
-.channel-card-title {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text);
-  text-decoration: none;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  margin: 0;
-}
-
-a.channel-card-title:hover { text-decoration: underline; }
-
-.channel-card-watched-dim { opacity: 0.4; }

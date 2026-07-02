@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSubscriptions, getSettings, saveSettings, getWatchedVideoIds, getAllCachedChannelVideos, setCachedChannelVideos } from '../db/index'
-import { pluginManager } from '../plugins/manager'
-import { downloadVideosWithThumbnailBlobs } from '../utils/avatar'
+import { getSubscriptions, getSettings, saveSettings, getWatchedVideoIds, getAllCachedChannelVideos } from '../db/index'
+import { refreshChannelVideos } from '../services/videoCache'
+import VideoCard from '../components/VideoCard'
+import ToggleButton from '../components/ToggleButton'
+import MenuButton from '../components/MenuButton'
 import type { Subscription } from '../types'
 import type { SearchResult } from '../plugins/types'
 import './Subscriptions.css'
@@ -13,15 +15,6 @@ type Section =
   | { channel: Subscription; status: 'error' }
 
 type SortMode = 'channel' | 'date'
-
-function formatDuration(seconds: number): string {
-  if (!seconds) return ''
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = seconds % 60
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-  return `${m}:${String(s).padStart(2, '0')}`
-}
 
 const VIDEOS_PER_CHANNEL = 8
 const BATCH_SIZE = 3
@@ -59,7 +52,6 @@ export default function Subscriptions() {
       if (cancelled) return
       if (!subs.length) { setInitialising(false); return }
 
-      // Seed sections from cache for instant display; fall back to loading state
       setSections(subs.map(channel => {
         const cached = allCaches.get(channel.channelId)
         return cached
@@ -68,22 +60,22 @@ export default function Subscriptions() {
       }))
       setInitialising(false)
 
-      let plugin
-      try { plugin = pluginManager.getActive() } catch { return }
-
       for (let i = 0; i < subs.length; i += BATCH_SIZE) {
         if (cancelled) break
         const batch = subs.slice(i, i + BATCH_SIZE)
         await Promise.allSettled(batch.map(async sub => {
           try {
-            const videos = await (plugin!.getChannelVideos?.(sub.channelId, VIDEOS_PER_CHANNEL) ?? Promise.resolve([]))
-            if (!cancelled) setSections(prev => prev.map(s =>
-              s.channel.channelId === sub.channelId ? { channel: sub, status: 'done', videos } : s
-            ))
-            // Download thumbnail blobs in background, then update cache
-            downloadVideosWithThumbnailBlobs(videos)
-              .then(withBlobs => setCachedChannelVideos(sub.channelId, withBlobs))
-              .catch(() => {})
+            await refreshChannelVideos(
+              sub.channelId,
+              fresh => {
+                if (!cancelled) setSections(prev => prev.map(s =>
+                  s.channel.channelId === sub.channelId
+                    ? { channel: sub, status: 'done', videos: fresh as SearchResult[] }
+                    : s
+                ))
+              },
+              VIDEOS_PER_CHANNEL,
+            )
           } catch {
             if (!cancelled) setSections(prev => prev.map(s =>
               s.channel.channelId === sub.channelId ? { channel: sub, status: 'error' } : s
@@ -105,7 +97,6 @@ export default function Subscriptions() {
 
   const shouldHide = hideWatched || watchedStyle === 'hide'
 
-  // ── Date sort: flat list of all videos from completed sections ──────────────
   const doneSections = sections.filter((s): s is Extract<Section, { status: 'done' }> => s.status === 'done')
   const loadingCount = sections.filter(s => s.status === 'loading').length
 
@@ -126,29 +117,31 @@ export default function Subscriptions() {
       <div className="feed-header">
         <h1 className="feed-heading">Subscriptions</h1>
         <div className="feed-controls">
-          <div className="feed-sort">
-            {(['channel', 'date'] as const).map(mode => (
-              <button
-                key={mode}
-                className={`feed-sort-btn${sortMode === mode ? ' active' : ''}`}
-                onClick={() => { setSortMode(mode); saveSettings({ feedSortMode: mode }).catch(() => {}) }}
-                aria-pressed={sortMode === mode}
-              >
-                {mode === 'channel' ? 'By channel' : 'By date'}
-              </button>
-            ))}
-          </div>
-          <button
-            className={`feed-toggle${hideWatched ? ' feed-toggle-active' : ''}`}
-            onClick={() => { const next = !hideWatched; setHideWatched(next); saveSettings({ feedHideWatched: next }).catch(() => {}) }}
-            aria-pressed={hideWatched}
+          <MenuButton
+            options={[
+              { value: 'channel', label: 'By channel' },
+              { value: 'date', label: 'By date' },
+            ]}
+            value={sortMode}
+            onChange={v => {
+              const mode = v as SortMode
+              setSortMode(mode)
+              saveSettings({ feedSortMode: mode }).catch(() => {})
+            }}
+          />
+          <ToggleButton
+            active={hideWatched}
+            onClick={() => {
+              const next = !hideWatched
+              setHideWatched(next)
+              saveSettings({ feedHideWatched: next }).catch(() => {})
+            }}
           >
             Unwatched only
-          </button>
+          </ToggleButton>
         </div>
       </div>
 
-      {/* ── By date: flat sorted grid ─────────────────────────────────────────── */}
       {sortMode === 'date' && (
         <>
           {loadingCount > 0 && (
@@ -159,45 +152,29 @@ export default function Subscriptions() {
           {allVideos.length === 0 && loadingCount === 0 ? (
             <p className="feed-empty">No videos found.</p>
           ) : (
-            <ul className="feed-grid feed-grid-flat">
-              {allVideos.map(v => {
-                const isWatched = watchedIds.has(v.videoId)
-                return (
-                  <li
-                    key={v.videoId}
-                    className={`feed-card${isWatched && !shouldHide && watchedStyle === 'dim' ? ' feed-card-dim' : ''}`}
-                  >
-                    <Link to={`/watch/${v.videoId}`} className="feed-card-thumb-link">
-                      <div className="feed-card-thumb">
-                        {v.thumbnail
-                          ? <img src={v.thumbnail} alt="" loading="lazy" />
-                          : <div className="feed-card-thumb-blank" />
-                        }
-                        {v.duration > 0 && (
-                          <span className="feed-card-duration">{formatDuration(v.duration)}</span>
-                        )}
-                      </div>
-                    </Link>
-                    <Link to={`/watch/${v.videoId}`} className="feed-card-title">{v.title}</Link>
-                    <Link to={`/channel/${v.channel.channelId}`} className="feed-card-channel">
-                      {v.channel.channelName}
-                    </Link>
-                  </li>
-                )
-              })}
+            <ul className="video-grid feed-grid-flat">
+              {allVideos.map(v => (
+                <VideoCard
+                  key={v.videoId}
+                  videoId={v.videoId}
+                  title={v.title}
+                  thumbnail={v.thumbnail}
+                  duration={v.duration}
+                  channelId={v.channel.channelId}
+                  channelName={v.channel.channelName}
+                  dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
+                />
+              ))}
             </ul>
           )}
         </>
       )}
 
-      {/* ── By channel: per-section layout ───────────────────────────────────── */}
       {sortMode === 'channel' && sections.map(section => {
         if (section.status === 'done' && !section.videos.length) return null
 
         const videos = section.status === 'done'
-          ? (shouldHide
-            ? section.videos.filter(v => !watchedIds.has(v.videoId))
-            : section.videos)
+          ? (shouldHide ? section.videos.filter(v => !watchedIds.has(v.videoId)) : section.videos)
           : []
 
         if (section.status === 'done' && !videos.length) return null
@@ -221,29 +198,17 @@ export default function Subscriptions() {
               <p className="feed-section-status feed-section-error">Failed to load videos.</p>
             )}
             {section.status === 'done' && (
-              <ul className="feed-grid">
-                {videos.map(v => {
-                  const isWatched = watchedIds.has(v.videoId)
-                  return (
-                    <li
-                      key={v.videoId}
-                      className={`feed-card${isWatched && !shouldHide && watchedStyle === 'dim' ? ' feed-card-dim' : ''}`}
-                    >
-                      <Link to={`/watch/${v.videoId}`} className="feed-card-thumb-link">
-                        <div className="feed-card-thumb">
-                          {v.thumbnail
-                            ? <img src={v.thumbnail} alt="" loading="lazy" />
-                            : <div className="feed-card-thumb-blank" />
-                          }
-                          {v.duration > 0 && (
-                            <span className="feed-card-duration">{formatDuration(v.duration)}</span>
-                          )}
-                        </div>
-                      </Link>
-                      <Link to={`/watch/${v.videoId}`} className="feed-card-title">{v.title}</Link>
-                    </li>
-                  )
-                })}
+              <ul className="video-grid">
+                {videos.map(v => (
+                  <VideoCard
+                    key={v.videoId}
+                    videoId={v.videoId}
+                    title={v.title}
+                    thumbnail={v.thumbnail}
+                    duration={v.duration}
+                    dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
+                  />
+                ))}
               </ul>
             )}
           </section>

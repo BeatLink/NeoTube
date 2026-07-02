@@ -1,21 +1,17 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { pluginManager } from '../plugins/manager'
 import type { ChannelInfo, SearchResult, ChannelPlaylist } from '../plugins/types'
-import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWatchedVideoIds, getCachedChannelVideos, setCachedChannelVideos } from '../db/index'
-import { downloadAvatar, downloadVideosWithThumbnailBlobs } from '../utils/avatar'
+import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWatchedVideoIds } from '../db/index'
+import { downloadAvatar } from '../utils/avatar'
+import { getOrFetchChannelVideos } from '../services/videoCache'
+import VideoCard from '../components/VideoCard'
+import VideoThumbnail from '../components/VideoThumbnail'
+import ToggleButton from '../components/ToggleButton'
+import Button from '../components/Button'
 import './Channel.css'
 
 type Tab = 'videos' | 'playlists'
-
-function formatDuration(seconds: number): string {
-  if (!seconds) return ''
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = seconds % 60
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-  return `${m}:${String(s).padStart(2, '0')}`
-}
 
 export default function Channel() {
   const { channelId } = useParams<{ channelId: string }>()
@@ -64,12 +60,12 @@ export default function Channel() {
     let cancelled = false
     const plugin = pluginManager.getActive()
 
-    // Show cached videos immediately while fresh data loads
-    getCachedChannelVideos(channelId)
-      .then(cached => { if (cached && !cancelled) setVideos(cached) })
-      .catch(() => {})
+    getOrFetchChannelVideos(channelId, fresh => {
+      if (!cancelled) setVideos(fresh as SearchResult[])
+    }).then(cached => {
+      if (cached && !cancelled) setVideos(cached as SearchResult[])
+    }).catch(() => {})
 
-    // Channel info and fresh videos are independent fetches
     plugin.getChannelInfo(channelId)
       .then(channelInfo => {
         if (cancelled) return
@@ -87,21 +83,9 @@ export default function Channel() {
         if (!cancelled) { setError(err.message); setLoadingInfo(false) }
       })
 
-    ;(plugin.getChannelVideos?.(channelId) ?? Promise.resolve([]))
-      .then(freshVideos => {
-        if (cancelled) return
-        setVideos(freshVideos)
-        // Download thumbnail blobs in background, then update cache
-        downloadVideosWithThumbnailBlobs(freshVideos)
-          .then(withBlobs => setCachedChannelVideos(channelId, withBlobs))
-          .catch(() => {})
-      })
-      .catch(() => { if (!cancelled) setVideos([]) })
-
     return () => { cancelled = true }
   }, [channelId])
 
-  // Lazy-load playlists when that tab is first selected
   useEffect(() => {
     if (tab !== 'playlists' || playlists !== null || !channelId) return
     const plugin = pluginManager.getActive()
@@ -129,9 +113,10 @@ export default function Channel() {
   if (error) return <div className="channel-status channel-error">{error}</div>
   if (!info) return null
 
+  const shouldHide = hideWatched || watchedStyle === 'hide'
+
   return (
     <div className="channel-page">
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="channel-header">
         {info.avatar && (
           <img className="channel-avatar" src={info.avatar} alt={info.name} />
@@ -141,12 +126,12 @@ export default function Channel() {
           {info.subscriberCount !== undefined && (
             <p className="channel-subs">{info.subscriberCount.toLocaleString()} subscribers</p>
           )}
-          <button
-            className={`channel-sub-btn ${subscribed ? 'subscribed' : ''}`}
+          <Button
+            className={`channel-sub-btn${subscribed ? ' subscribed' : ''}`}
             onClick={toggleSubscribe}
           >
             {subscribed ? 'Subscribed' : 'Subscribe'}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -157,7 +142,6 @@ export default function Channel() {
         </details>
       )}
 
-      {/* ── Tabs ───────────────────────────────────────────────────────────── */}
       <div className="channel-tabs">
         <button
           className={`channel-tab ${tab === 'videos' ? 'active' : ''}`}
@@ -172,78 +156,60 @@ export default function Channel() {
           Playlists
         </button>
         {tab === 'videos' && (
-          <button
-            className={`channel-tab-toggle${hideWatched ? ' active' : ''}`}
-            onClick={() => { const next = !hideWatched; setHideWatched(next); saveSettings({ channelPageHideWatched: next }).catch(() => {}) }}
-            aria-pressed={hideWatched}
+          <ToggleButton
+            active={hideWatched}
+            onClick={() => {
+              const next = !hideWatched
+              setHideWatched(next)
+              saveSettings({ channelPageHideWatched: next }).catch(() => {})
+            }}
+            style={{ marginLeft: 'auto' }}
           >
             Unwatched only
-          </button>
+          </ToggleButton>
         )}
       </div>
 
-      {/* ── Videos tab ─────────────────────────────────────────────────────── */}
       {tab === 'videos' && (
         videos === null
           ? <p className="channel-tab-status">Loading videos…</p>
           : videos.length === 0
             ? <p className="channel-tab-status">No videos found.</p>
             : (() => {
-                const shouldHide = hideWatched || watchedStyle === 'hide'
                 const visibleVideos = shouldHide
                   ? videos.filter(v => !watchedIds.has(v.videoId))
                   : videos
                 return (
-                  <ul className="channel-grid">
-                    {visibleVideos.map(v => {
-                      const isWatched = watchedIds.has(v.videoId)
-                      const cardClass = `channel-card${isWatched && !shouldHide && watchedStyle === 'dim' ? ' channel-card-watched-dim' : ''}`
-                      return (
-                        <li key={v.videoId} className={cardClass}>
-                          <Link to={`/watch/${v.videoId}`} className="channel-card-thumb-link">
-                            <div className="channel-card-thumb">
-                              {v.thumbnail
-                                ? <img src={v.thumbnail} alt="" loading="lazy" />
-                                : <div className="channel-card-thumb-blank" />
-                              }
-                              {v.duration > 0 && (
-                                <span className="channel-card-duration">
-                                  {formatDuration(v.duration)}
-                                </span>
-                              )}
-                            </div>
-                          </Link>
-                          <Link to={`/watch/${v.videoId}`} className="channel-card-title">
-                            {v.title}
-                          </Link>
-                        </li>
-                      )
-                    })}
+                  <ul className="video-grid">
+                    {visibleVideos.map(v => (
+                      <VideoCard
+                        key={v.videoId}
+                        videoId={v.videoId}
+                        title={v.title}
+                        thumbnail={v.thumbnail}
+                        duration={v.duration}
+                        dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
+                      />
+                    ))}
                   </ul>
                 )
               })()
       )}
 
-      {/* ── Playlists tab ──────────────────────────────────────────────────── */}
       {tab === 'playlists' && (
         loadingPlaylists
           ? <p className="channel-tab-status">Loading playlists…</p>
           : !playlists || playlists.length === 0
             ? <p className="channel-tab-status">No playlists found.</p>
             : (
-              <ul className="channel-grid">
+              <ul className="video-grid">
                 {playlists.map(p => (
-                  <li key={p.playlistId} className="channel-card">
-                    <div className="channel-card-thumb channel-card-playlist-thumb">
-                      {p.thumbnail
-                        ? <img src={p.thumbnail} alt="" loading="lazy" />
-                        : <div className="channel-card-thumb-blank" />
-                      }
-                      {p.videoCount !== undefined && (
-                        <span className="channel-card-duration">{p.videoCount} videos</span>
-                      )}
-                    </div>
-                    <p className="channel-card-title">{p.title}</p>
+                  <li key={p.playlistId} className="video-card">
+                    <VideoThumbnail src={p.thumbnail} />
+                    <p className="video-card-title">{p.title}</p>
+                    {p.videoCount !== undefined && (
+                      <p className="video-card-meta">{p.videoCount} videos</p>
+                    )}
                   </li>
                 ))}
               </ul>

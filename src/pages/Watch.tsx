@@ -5,6 +5,7 @@ import type { VideoInfo } from '../plugins/types'
 import { isSubscribed, subscribe, unsubscribe, recordWatch } from '../db/index'
 import { downloadAvatar } from '../utils/avatar'
 import VideoPlayer from '../components/VideoPlayer'
+import Button from '../components/Button'
 import './Watch.css'
 
 type State =
@@ -79,12 +80,12 @@ export default function Watch() {
           <Link to={`/channel/${info.channelId}`} className="watch-channel">
             {info.channelName}
           </Link>
-          <button
-            className={`watch-sub-btn ${subscribed ? 'subscribed' : ''}`}
+          <Button
+            className={`watch-sub-btn${subscribed ? ' subscribed' : ''}`}
             onClick={toggleSubscribe}
           >
             {subscribed ? 'Subscribed' : 'Subscribe'}
-          </button>
+          </Button>
         </div>
         {info.viewCount !== undefined && (
           <p className="watch-views">{info.viewCount.toLocaleString()} views</p>

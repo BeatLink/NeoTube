@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { pluginManager } from '../plugins/manager'
 import { getSettings, getWatchedVideoIds } from '../db/index'
+import VideoThumbnail from '../components/VideoThumbnail'
+import { formatDuration } from '../utils/format'
 import type { SearchResult } from '../plugins/types'
 import './Search.css'
 
@@ -10,15 +12,6 @@ type State =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'ready'; results: SearchResult[] }
-
-function formatDuration(seconds: number): string {
-  if (!seconds) return ''
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = seconds % 60
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-  return `${m}:${String(s).padStart(2, '0')}`
-}
 
 export default function Search() {
   const [params] = useSearchParams()
@@ -95,13 +88,7 @@ export default function Search() {
           return (
             <li key={r.videoId} className={cardClass}>
               <Link to={`/watch/${r.videoId}`} className="result-thumb-wrap">
-                {r.thumbnail
-                  ? <img className="result-thumb" src={r.thumbnail} alt="" loading="lazy" />
-                  : <div className="result-thumb result-thumb-blank" />
-                }
-                {r.duration > 0 && (
-                  <span className="result-duration">{formatDuration(r.duration)}</span>
-                )}
+                <VideoThumbnail src={r.thumbnail} duration={r.duration} />
               </Link>
               <div className="result-info">
                 <Link to={`/watch/${r.videoId}`} className="result-title">{r.title}</Link>

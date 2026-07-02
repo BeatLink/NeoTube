@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getSubscriptions, unsubscribe, getHistory, getSettings, saveSettings } from '../db/index'
+import ToggleButton from '../components/ToggleButton'
+import Button from '../components/Button'
 import type { Subscription } from '../types'
 import './Channels.css'
 
@@ -48,13 +50,12 @@ export default function Channels() {
         <h1 className="subs-heading">Channels</h1>
         {subs.length > 0 && (
           <div className="subs-controls">
-            <button
-              className={`subs-toggle${hideWatched ? ' active' : ''}`}
+            <ToggleButton
+              active={hideWatched}
               onClick={() => { const next = !hideWatched; setHideWatched(next); saveSettings({ channelsHideWatched: next }).catch(() => {}) }}
-              aria-pressed={hideWatched}
             >
               Unwatched only
-            </button>
+            </ToggleButton>
             <input
               className="subs-search"
               type="search"
@@ -90,13 +91,14 @@ export default function Channels() {
                 }
                 <p className="subs-card-name">{sub.channelName}</p>
               </Link>
-              <button
+              <Button
+                size="sm"
                 className="subs-card-unsub"
                 onClick={() => handleUnsubscribe(sub.channelId)}
                 aria-label={`Unsubscribe from ${sub.channelName}`}
               >
                 Unsubscribe
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

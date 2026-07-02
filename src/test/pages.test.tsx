@@ -74,6 +74,12 @@ vi.mock('../plugins/manager', () => {
   }
 })
 
+vi.mock('../services/videoCache', () => ({
+  getOrFetchChannelVideos: vi.fn().mockResolvedValue(null),
+  refreshChannelVideos: vi.fn().mockResolvedValue([]),
+  cacheHistoryThumbnails: vi.fn().mockResolvedValue(undefined),
+}))
+
 // Inline vi.fn() — must not reference outer variables (vi.mock is hoisted)
 vi.mock('../db/index', () => ({
   getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true, watchedVideoStyle: 'normal', feedSortMode: 'channel', feedHideWatched: false, channelsHideWatched: false, channelPageHideWatched: false }),

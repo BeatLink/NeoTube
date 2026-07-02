@@ -122,29 +122,8 @@
   max-width: 480px;
 }
 
-.ft-scan-btn,
-.ft-import-btn,
-.ft-cancel-btn {
-  padding: 8px 18px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  background: transparent;
-  color: var(--text);
-}
-
+/* Button component provides border-radius, border, cursor, transition */
 .ft-scan-btn:hover  { background: var(--surface-hover); }
-
-.ft-import-btn {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.ft-import-btn:hover:not(:disabled) { background: var(--accent-bg); }
-.ft-import-btn:disabled { opacity: 0.4; cursor: default; }
-
 .ft-cancel-btn:hover { background: var(--surface-hover); }
 
 .ft-actions {

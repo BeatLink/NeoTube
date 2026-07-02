@@ -53,9 +53,14 @@ NeoTube/
 │   │                      #   window.freetube  — FreeTube data import
 │   └── tsconfig.json
 ├── src/
-│   ├── components/        # Shared UI components
-│   │   ├── Layout.tsx     # App shell: sidebar, topbar, startup avatar refresh
-│   │   └── VideoPlayer.tsx
+│   ├── components/        # Shared UI components (each in its own subfolder)
+│   │   ├── Button/        # Base button (variants: primary, secondary, ghost, danger; sizes: sm, md)
+│   │   ├── Layout/        # App shell: sidebar, topbar, startup avatar refresh
+│   │   ├── MenuButton/    # Segmented control group (e.g. sort mode, quality selector)
+│   │   ├── ToggleButton/  # Toggle button with active state, built on Button base classes
+│   │   ├── VideoCard/     # Video list item: thumbnail + title + channel + meta (renders as <li>)
+│   │   ├── VideoPlayer/   # HTML5 video player with quality selector
+│   │   └── VideoThumbnail/ # 16:9 thumbnail wrapper with duration badge
 │   ├── contexts/          # React contexts (ThemeContext)
 │   ├── db/                # PouchDB access layer (lazy singleton)
 │   │   └── index.ts       # Settings, subscriptions, watch history CRUD
@@ -73,10 +78,16 @@ NeoTube/
 │   │   ├── manager.ts     # PluginManager singleton
 │   │   ├── ytdlp/         # yt-dlp plugin (Electron IPC)
 │   │   └── youtubejs/     # youtube.js plugin (Electron IPC via Innertube)
+│   ├── services/
+│   │   └── videoCache.ts  # Stale-while-revalidate channel video cache
+│   │                      #   getOrFetchChannelVideos — serve cache + background refresh via onFresh callback
+│   │                      #   refreshChannelVideos    — force fetch, awaitable (used by batch feed loader)
+│   │                      #   cacheHistoryThumbnails  — batch blob download with onEach progress callback
 │   ├── test/              # Vitest test files + setup
 │   ├── types/             # Shared TypeScript types (index.ts, pouchdb-browser.d.ts)
 │   └── utils/
 │       ├── avatar.ts      # downloadAvatar — fetches image blob via Electron IPC
+│       ├── format.ts      # formatDuration, timeAgo — shared time/duration formatting
 │       └── youtube.ts     # parseVideoId — extracts video ID from any YouTube URL form
 ├── public/                # Static assets
 ├── capacitor.config.ts    # Capacitor (mobile) configuration
@@ -148,7 +159,7 @@ The sidebar channel list is sorted alphabetically and scrollable (scrollbar hidd
 ### Subscriptions
 - Subscribe / unsubscribe from Watch page and Channel page
 - Subscriptions stored in PouchDB, sorted alphabetically
-- **Subscriptions feed** (`/subscriptions`): recent videos from all subscribed channels, loaded in parallel batches; "Unwatched only" toggle
+- **Subscriptions feed** (`/subscriptions`): recent videos from all subscribed channels, loaded in parallel batches; sort "By channel" (grouped) or "By date" (flat chronological); "Unwatched only" toggle
 - **Channels grid** (`/channels`): card grid of subscribed channels with avatar, filter search, unsubscribe button
 - Sidebar: subscribed channels listed with avatar (scrollbar hidden until hover)
 - Channel avatars stored as base64 blobs (no broken CDN links)
@@ -247,6 +258,17 @@ _To be defined._
 - [x] FreeTube import (subscriptions + watch history, Desktop only)
 - [ ] OPML / CSV subscription export
 - [ ] Generic watch history export
+
+### Phase 6.5 — UI Component System ✓
+- [x] Centralised `Button` component (primary / secondary / ghost / danger variants, sm / md sizes)
+- [x] `MenuButton` segmented control (sort mode, quality selector)
+- [x] `ToggleButton` built on Button base classes
+- [x] `VideoCard` component — thumbnail + title + channel + meta as a reusable `<li>` item
+- [x] `VideoThumbnail` component — 16:9 wrapper with duration badge
+- [x] `src/utils/format.ts` — shared `formatDuration` + `timeAgo` (de-duplicated from 4 pages)
+- [x] `src/services/videoCache.ts` — stale-while-revalidate cache with callback API
+- [x] All components moved to own subfolders (`ComponentName/ComponentName.tsx` + `index.ts`)
+- [x] Pill border-radius (20px) replaced with rounded (8px) throughout
 
 ### Phase 7 — Mobile & Desktop Polish
 - [ ] Capacitor: add Android + iOS native projects

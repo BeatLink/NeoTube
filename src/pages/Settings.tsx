@@ -3,6 +3,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { pluginManager } from '../plugins/manager'
 import { saveSettings, getSettings, subscribe, recordWatch } from '../db/index'
 import { downloadAvatar } from '../utils/avatar'
+import Button from '../components/Button'
 import './Settings.css'
 
 // ─── FreeTube import types ────────────────────────────────────────────────────
@@ -219,9 +220,9 @@ export default function Settings() {
               {/* Idle / scan button */}
               {(importState.status === 'idle' || importState.status === 'not-found') && (
                 <>
-                  <button className="ft-scan-btn" onClick={handleScan}>
+                  <Button className="ft-scan-btn" onClick={handleScan}>
                     Find FreeTube Data
-                  </button>
+                  </Button>
                   {importState.status === 'not-found' && (
                     <p className="ft-msg ft-msg-warn">
                       No FreeTube installation found. Install FreeTube or check that it has been run at least once.
@@ -265,19 +266,20 @@ export default function Settings() {
                     </label>
                   </div>
                   <div className="ft-actions">
-                    <button
+                    <Button
+                      variant="danger"
                       className="ft-import-btn"
                       onClick={handleImport}
                       disabled={!importSubs && !importHist}
                     >
                       Import
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       className="ft-cancel-btn"
                       onClick={() => setImportState({ status: 'idle' })}
                     >
                       Cancel
-                    </button>
+                    </Button>
                   </div>
                 </>
               )}
@@ -295,21 +297,21 @@ export default function Settings() {
                     {importState.hist > 0 && ` ${importState.hist} history entr${importState.hist !== 1 ? 'ies' : 'y'}`}
                     {importState.subs === 0 && importState.hist === 0 && ' nothing to import'}
                   </p>
-                  <button
+                  <Button
                     className="ft-scan-btn"
                     onClick={() => setImportState({ status: 'idle' })}
                   >
                     Import again
-                  </button>
+                  </Button>
                 </>
               )}
 
               {importState.status === 'error' && (
                 <>
                   <p className="ft-msg ft-msg-error">{importState.message}</p>
-                  <button className="ft-scan-btn" onClick={() => setImportState({ status: 'idle' })}>
+                  <Button className="ft-scan-btn" onClick={() => setImportState({ status: 'idle' })}>
                     Try again
-                  </button>
+                  </Button>
                 </>
               )}
             </div>

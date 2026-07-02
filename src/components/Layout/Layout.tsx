@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
-import { useTheme } from '../contexts/ThemeContext'
-import { parseVideoId } from '../utils/youtube'
-import { getSubscriptions, subscribe } from '../db/index'
-import { pluginManager } from '../plugins/manager'
-import { downloadAvatar } from '../utils/avatar'
-import type { Subscription } from '../types'
+import { useTheme } from '../../contexts/ThemeContext'
+import { parseVideoId } from '../../utils/youtube'
+import { getSubscriptions, subscribe } from '../../db/index'
+import { pluginManager } from '../../plugins/manager'
+import { downloadAvatar } from '../../utils/avatar'
+import Button from '../Button'
+import type { Subscription } from '../../types'
 
 export default function Layout() {
   const { theme, toggle } = useTheme()
@@ -108,11 +109,11 @@ export default function Layout() {
             }}
             aria-label="Search"
           />
-          <button className="topbar-submit" type="submit">Search</button>
+          <Button variant="primary" type="submit" className="topbar-submit">Search</Button>
         </form>
-        <button className="theme-toggle topbar-theme" onClick={toggle} aria-label="Toggle theme">
+        <Button variant="ghost" className="topbar-theme" onClick={toggle} aria-label="Toggle theme">
           {theme === 'light' ? '🌙' : '☀️'}
-        </button>
+        </Button>
       </header>
 
       <div className="content">

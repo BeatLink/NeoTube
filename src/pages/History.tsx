@@ -1,42 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { getHistory, removeFromHistory, clearHistory, updateHistoryThumbnail } from '../db/index'
-import { downloadAvatar } from '../utils/avatar'
+import { getHistory, removeFromHistory, clearHistory } from '../db/index'
+import { cacheHistoryThumbnails } from '../services/videoCache'
+import VideoCard from '../components/VideoCard'
+import Button from '../components/Button'
+import { timeAgo } from '../utils/format'
 import type { WatchHistoryEntry } from '../types'
 import './History.css'
 
 const PAGE_SIZE = 24
 const SESSION_KEY = 'history-scroll'
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const m = Math.floor(diff / 60_000)
-  if (m < 1)  return 'just now'
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  if (d < 30) return `${d}d ago`
-  const mo = Math.floor(d / 30)
-  if (mo < 12) return `${mo}mo ago`
-  return `${Math.floor(mo / 12)}y ago`
-}
-
-function formatDuration(s: number): string {
-  if (!s) return ''
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  const sec = s % 60
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
-  return `${m}:${String(sec).padStart(2, '0')}`
-}
-
 export default function History() {
   const [history, setHistory] = useState<WatchHistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [confirmClear, setConfirmClear] = useState(false)
 
-  // Read saved scroll state once at mount
   const [initState] = useState(() => {
     try {
       const s = JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? '{}')
@@ -50,10 +28,8 @@ export default function History() {
   const scrollRestoredRef = useRef(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
-  // Keep ref in sync so the unmount cleanup captures the latest value
   useEffect(() => { visibleCountRef.current = visibleCount }, [visibleCount])
 
-  // Save scroll position and visible count on unmount
   useEffect(() => {
     return () => {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({
@@ -70,7 +46,6 @@ export default function History() {
     return () => window.removeEventListener('history-changed', refresh)
   }, [])
 
-  // Restore scroll after data loads and items are rendered
   useEffect(() => {
     if (!loading && history.length > 0 && !scrollRestoredRef.current && initState.scrollY > 0) {
       window.scrollTo(0, initState.scrollY)
@@ -78,47 +53,29 @@ export default function History() {
     }
   }, [loading, history.length, initState.scrollY])
 
-  // Backfill blob thumbnails for entries that only have CDN URLs.
-  // Dep is [loading]: fires once when loading flips to false, which is batched
-  // with setHistory, so the closure captures the fully-loaded history array.
   useEffect(() => {
     if (loading) return
-    // For entries with CDN URLs: download as-is.
-    // For entries with empty thumbnails (e.g. FreeTube imports): derive URL from video ID.
-    const ytThumb = (id: string) => `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
-    const toBackfill = history
-      .filter(e => !e.thumbnail?.startsWith('data:'))
-      .map(e => ({ entry: e, url: e.thumbnail || ytThumb(e.videoId) }))
+    const toBackfill = history.filter(e => !e.thumbnail?.startsWith('data:'))
     if (!toBackfill.length) return
-    let done = 0
     let cancelled = false
+    let done = 0
     setBackfillProgress({ done: 0, total: toBackfill.length })
-    ;(async () => {
-      const BATCH = 10
-      for (let i = 0; i < toBackfill.length; i += BATCH) {
-        if (cancelled) break
-        await Promise.allSettled(toBackfill.slice(i, i + BATCH).map(async ({ entry, url }) => {
-          const blob = await downloadAvatar(url)
-          if (blob && !cancelled) {
-            await updateHistoryThumbnail(entry.videoId, blob)
-            setHistory(prev => prev.map(e => e.videoId === entry.videoId ? { ...e, thumbnail: blob } : e))
-          }
-          if (!cancelled) setBackfillProgress({ done: ++done, total: toBackfill.length })
-        }))
-      }
+    cacheHistoryThumbnails(toBackfill, (videoId, dataUri) => {
+      if (cancelled) return
+      done++
+      setHistory(prev => prev.map(e => e.videoId === videoId ? { ...e, thumbnail: dataUri } : e))
+      setBackfillProgress(p => p ? { ...p, done } : null)
+    }).finally(() => {
       if (!cancelled) setBackfillProgress(null)
-    })()
+    })
     return () => { cancelled = true; setBackfillProgress(null) }
   }, [loading])
 
-  // Attach IntersectionObserver once data is loaded and sentinel is in the DOM
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(
-      entries => {
-        if (entries[0].isIntersecting) setVisibleCount(c => c + PAGE_SIZE)
-      },
+      entries => { if (entries[0].isIntersecting) setVisibleCount(c => c + PAGE_SIZE) },
       { rootMargin: '200px' },
     )
     observer.observe(el)
@@ -154,13 +111,13 @@ export default function History() {
           confirmClear ? (
             <div className="history-confirm">
               <span>Clear all history?</span>
-              <button className="history-confirm-yes" onClick={handleClearAll}>Yes, clear</button>
-              <button className="history-confirm-no" onClick={() => setConfirmClear(false)}>Cancel</button>
+              <Button size="sm" variant="danger" onClick={handleClearAll}>Yes, clear</Button>
+              <Button size="sm" onClick={() => setConfirmClear(false)}>Cancel</Button>
             </div>
           ) : (
-            <button className="history-clear-btn" onClick={() => setConfirmClear(true)}>
+            <Button className="history-clear-btn" onClick={() => setConfirmClear(true)}>
               Clear all
-            </button>
+            </Button>
           )
         )}
       </div>
@@ -169,43 +126,25 @@ export default function History() {
         <p className="history-empty">No watch history yet. Videos you watch will appear here.</p>
       ) : (
         <>
-          <ul className="history-grid">
+          <ul className="video-grid">
             {visible.map(entry => (
-              <li key={entry.videoId} className="history-card">
-                <Link to={`/watch/${entry.videoId}`} className="history-thumb-link">
-                  <div className="history-thumb">
-                    {entry.thumbnail
-                      ? <img src={entry.thumbnail} alt="" loading="lazy" />
-                      : <div className="history-thumb-blank" />
-                    }
-                    {entry.duration > 0 && (
-                      <span className="history-duration">{formatDuration(entry.duration)}</span>
-                    )}
-                  </div>
-                </Link>
-                <div className="history-info">
-                  <Link to={`/watch/${entry.videoId}`} className="history-title">
-                    {entry.title}
-                  </Link>
-                  <Link to={`/channel/${entry.channelId}`} className="history-channel">
-                    {entry.channelName}
-                  </Link>
-                  <p className="history-meta">
-                    {timeAgo(entry.watchedAt)}
-                    {entry.watchCount > 1 && (
-                      <span className="history-count"> · {entry.watchCount}×</span>
-                    )}
-                  </p>
-                </div>
-                <button
-                  className="history-remove"
-                  onClick={() => handleRemove(entry.videoId)}
-                  aria-label={`Remove ${entry.title} from history`}
-                  title="Remove from history"
-                >
-                  ✕
-                </button>
-              </li>
+              <VideoCard
+                key={entry.videoId}
+                videoId={entry.videoId}
+                title={entry.title}
+                thumbnail={entry.thumbnail}
+                duration={entry.duration}
+                channelId={entry.channelId}
+                channelName={entry.channelName}
+                meta={<>
+                  {timeAgo(entry.watchedAt)}
+                  {entry.watchCount > 1 && (
+                    <span className="video-card-count"> · {entry.watchCount}×</span>
+                  )}
+                </>}
+                onRemove={() => handleRemove(entry.videoId)}
+                removeLabel={`Remove ${entry.title} from history`}
+              />
             ))}
           </ul>
           {visibleCount < history.length && (

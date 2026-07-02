@@ -22,7 +22,7 @@
   max-width: 320px;
   padding: 8px 14px;
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 8px;
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
@@ -107,18 +107,8 @@
   word-break: break-word;
 }
 
-.subs-card-unsub {
-  margin-top: auto;
-  padding: 5px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  white-space: nowrap;
-}
+/* Button component provides border, cursor, transition, white-space */
+.subs-card-unsub { margin-top: auto; }
 
 .subs-card-unsub:hover {
   background: var(--accent-bg);
@@ -134,25 +124,4 @@
   gap: 10px;
   flex-wrap: wrap;
   margin-left: auto;
-}
-
-.subs-toggle {
-  padding: 6px 16px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.subs-toggle:hover { background: var(--surface-hover); color: var(--text); }
-
-.subs-toggle.active {
-  border-color: var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent);
 }

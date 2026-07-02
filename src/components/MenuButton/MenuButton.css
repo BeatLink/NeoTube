@@ -1,0 +1,27 @@
+.menu-btn-group {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.menu-btn {
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.menu-btn:last-child { border-right: none; }
+
+.menu-btn:hover { background: var(--surface-hover); color: var(--text); }
+
+.menu-btn-active { background: var(--accent-bg); color: var(--accent); }
+.menu-btn-active:hover { background: var(--accent-bg); color: var(--accent); }

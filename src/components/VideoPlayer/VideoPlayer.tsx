@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import type { StreamUrl } from '../plugins/types'
+import type { StreamUrl } from '../../plugins/types'
+import '../MenuButton/MenuButton.css'
 import './VideoPlayer.css'
 
 interface Props {
@@ -31,11 +32,11 @@ export default function VideoPlayer({ streams, title }: Props) {
         title={title}
         className="video-element"
       />
-      <div className="quality-selector">
+      <div className="quality-selector menu-btn-group">
         {streams.filter(s => s.hasVideo).map((s, i) => (
           <button
             key={`${s.quality}-${s.format}-${i}`}
-            className={`quality-btn ${selected === s ? 'active' : ''}`}
+            className={`menu-btn${selected === s ? ' menu-btn-active' : ''}`}
             onClick={() => setSelected(s)}
           >
             {s.quality}

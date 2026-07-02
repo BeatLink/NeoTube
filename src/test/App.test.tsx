@@ -2,6 +2,12 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import App from '../App'
 
+vi.mock('../services/videoCache', () => ({
+  getOrFetchChannelVideos: vi.fn().mockResolvedValue(null),
+  refreshChannelVideos: vi.fn().mockResolvedValue([]),
+  cacheHistoryThumbnails: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('../db/index', () => ({
   getSettings: vi.fn().mockResolvedValue({ theme: 'system', _id: 'settings', type: 'settings', activePlugin: 'youtubejs', defaultQuality: 'best', privacyMode: true, watchedVideoStyle: 'normal', feedSortMode: 'channel', feedHideWatched: false, channelsHideWatched: false, channelPageHideWatched: false }),
   saveSettings: vi.fn().mockResolvedValue(undefined),

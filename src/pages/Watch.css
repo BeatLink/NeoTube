@@ -34,16 +34,12 @@
   text-decoration: underline;
 }
 
+/* Button component provides border-radius, cursor, transition */
 .watch-sub-btn {
-  padding: 6px 16px;
-  border-radius: 20px;
-  border: none;
+  font-weight: 600;
   background: var(--text);
   color: var(--bg);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
+  border-color: transparent;
 }
 
 .watch-sub-btn:hover { opacity: 0.8; }
@@ -51,8 +47,11 @@
 .watch-sub-btn.subscribed {
   background: var(--surface-hover);
   color: var(--text-muted);
-  border: 1px solid var(--border);
+  border-color: var(--border);
+  opacity: 1;
 }
+
+.watch-sub-btn.subscribed:hover { color: var(--text); opacity: 1; }
 
 .watch-views {
   color: var(--text-muted);

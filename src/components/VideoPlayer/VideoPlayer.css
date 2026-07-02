@@ -1,0 +1,18 @@
+.video-player {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.video-element {
+  width: 100%;
+  max-height: 70vh;
+  background: #000;
+  border-radius: 8px;
+}
+
+
+.player-error {
+  color: var(--accent);
+  padding: 16px 0;
+}
