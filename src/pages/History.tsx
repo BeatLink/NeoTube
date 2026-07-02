@@ -89,7 +89,6 @@ export default function History() {
     const toBackfill = history
       .filter(e => !e.thumbnail?.startsWith('data:'))
       .map(e => ({ entry: e, url: e.thumbnail || ytThumb(e.videoId) }))
-    console.log('[history backfill] total:', history.length, 'need caching:', toBackfill.length, 'electron:', !!window.electron?.downloadAvatar)
     if (!toBackfill.length) return
     let done = 0
     let cancelled = false
@@ -100,7 +99,6 @@ export default function History() {
         if (cancelled) break
         await Promise.allSettled(toBackfill.slice(i, i + BATCH).map(async ({ entry, url }) => {
           const blob = await downloadAvatar(url)
-          console.log('[history backfill]', entry.videoId, blob ? 'cached' : 'failed')
           if (blob && !cancelled) {
             await updateHistoryThumbnail(entry.videoId, blob)
             setHistory(prev => prev.map(e => e.videoId === entry.videoId ? { ...e, thumbnail: blob } : e))

@@ -223,13 +223,11 @@ function registerYoutubeJsHandlers() {
 
 function registerAvatarHandlers() {
   ipcMain.handle('avatar:download', async (_event, url: string) => {
-    console.log('[avatar:download]', url.slice(0, 80))
     const response = await fetch(url)
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const buffer = await response.arrayBuffer()
     const contentType = response.headers.get('content-type') ?? 'image/jpeg'
     const base64 = Buffer.from(buffer).toString('base64')
-    console.log('[avatar:download] ok', contentType, buffer.byteLength, 'bytes')
     return `data:${contentType};base64,${base64}`
   })
 }
