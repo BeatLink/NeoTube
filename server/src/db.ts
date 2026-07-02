@@ -1,11 +1,15 @@
 import PouchDB from 'pouchdb'
 import { homedir } from 'os'
 import { join } from 'path'
+import { mkdirSync } from 'fs'
 import type { UserSettings, Subscription, WatchHistoryEntry, CachedVideo, ChannelVideoCache } from './types.js'
 
 // ─── Database singleton ───────────────────────────────────────────────────────
 
 const dbPath = process.env.NEOTUBE_DB_PATH ?? join(homedir(), '.neotube', 'db')
+
+// LevelDB requires the directory to exist before opening.
+mkdirSync(dbPath, { recursive: true })
 
 let _db: PouchDB.Database | null = null
 function db(): PouchDB.Database {
