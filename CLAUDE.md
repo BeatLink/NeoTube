@@ -74,3 +74,51 @@ Adding a screen: create `lib/screens/<name>/<name>_screen.dart`, add a route in 
 - Server route files export a single default Fastify plugin function
 - Flutter screens end in `Screen`, widgets don't
 - PouchDB document IDs use a typed prefix: `sub-<channelId>`, `history-<videoId>`, `settings`, `channel-cache-<channelId>`
+
+## Documentation
+
+Keep documentation in sync with every code change:
+
+- **`CLAUDE.md`** — update whenever commands, conventions, or project structure change
+- **`DEVELOP.md`** — update the relevant section (Architecture, Features, Directory Structure, Roadmap) when adding or removing a significant capability; tick roadmap checkboxes as items complete
+- **`server/src/types.ts` ↔ `app/lib/models/models.dart`** — these must stay in sync; update both when the API contract changes
+
+Do not create separate design or decision documents — use the conversation and `DEVELOP.md` instead.
+
+## Tests
+
+Run the relevant suite before committing:
+
+```bash
+# React / Electron (Vitest)
+npm run test:run
+
+# Flutter
+cd app && flutter test
+
+# Server (no test suite yet — start the server and hit /api/health as a smoke test)
+cd server && npm run dev &
+curl -s http://localhost:7700/api/health
+```
+
+All tests must pass before committing. If a test suite doesn't exist for the changed area, note it explicitly rather than skipping silently.
+
+## Committing
+
+1. **Run tests** for the changed area (see above).
+2. **Update docs** — tick roadmap items, update DEVELOP.md sections, update CLAUDE.md if conventions changed.
+3. **Stage precisely** — add specific files, not `git add .`; never stage `.env`, secrets, or build artefacts.
+4. **Commit message format**:
+   - First line: `<Type>: <short imperative summary>` (≤ 72 chars)
+   - Types: `Add`, `Fix`, `Refactor`, `Update`, `Remove`, `Docs`
+   - Body (optional): explain *why*, not *what*; reference the area (`server/`, `app/`, `electron/`)
+   - Always add the co-author trailer: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
+5. **One logical change per commit** — don't bundle unrelated fixes.
+
+## Response style
+
+- Be concise. One sentence per update while working; one or two sentences at the end summarising what changed and what's next.
+- No preamble ("Sure!", "Great question!", "I'll now…"). Start with the action.
+- No trailing summaries restating what the diff already shows.
+- Prefer a direct answer over a list of options when the right answer is clear.
+- Skip comments that explain *what* code does — only add them when the *why* is non-obvious.
