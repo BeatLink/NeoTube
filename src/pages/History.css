@@ -173,3 +173,5 @@
 .history-remove:hover { background: rgba(220, 50, 50, 0.85); }
 
 .history-sentinel { height: 1px; }
+
+.history-backfill-status { font-style: italic; }

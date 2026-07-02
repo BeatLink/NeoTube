@@ -45,6 +45,7 @@ export default function History() {
   })
 
   const [visibleCount, setVisibleCount] = useState(initState.count)
+  const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null)
   const visibleCountRef = useRef(visibleCount)
   const scrollRestoredRef = useRef(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -83,22 +84,28 @@ export default function History() {
   useEffect(() => {
     if (loading) return
     const missing = history.filter(e => e.thumbnail && !e.thumbnail.startsWith('data:'))
+    console.log('[history backfill] total:', history.length, 'need caching:', missing.length, 'electron:', !!window.electron?.downloadAvatar)
     if (!missing.length) return
+    let done = 0
     let cancelled = false
+    setBackfillProgress({ done: 0, total: missing.length })
     ;(async () => {
       const BATCH = 10
       for (let i = 0; i < missing.length; i += BATCH) {
         if (cancelled) break
         await Promise.allSettled(missing.slice(i, i + BATCH).map(async entry => {
           const blob = await downloadAvatar(entry.thumbnail)
+          console.log('[history backfill]', entry.videoId, blob ? 'cached' : 'failed')
           if (blob && !cancelled) {
             await updateHistoryThumbnail(entry.videoId, blob)
             setHistory(prev => prev.map(e => e.videoId === entry.videoId ? { ...e, thumbnail: blob } : e))
           }
+          if (!cancelled) setBackfillProgress({ done: ++done, total: missing.length })
         }))
       }
+      if (!cancelled) setBackfillProgress(null)
     })()
-    return () => { cancelled = true }
+    return () => { cancelled = true; setBackfillProgress(null) }
   }, [loading])
 
   // Attach IntersectionObserver once data is loaded and sentinel is in the DOM
@@ -135,6 +142,11 @@ export default function History() {
     <div className="history-page">
       <div className="history-header">
         <h1 className="history-heading">Watch History</h1>
+        {backfillProgress && (
+          <p className="history-status history-backfill-status">
+            Caching thumbnails… {backfillProgress.done}/{backfillProgress.total}
+          </p>
+        )}
         {history.length > 0 && (
           confirmClear ? (
             <div className="history-confirm">
