@@ -5,11 +5,9 @@
 ```
 NeoTube/
 ├── server/          Node.js REST API server (Fastify + PouchDB + youtubei.js + yt-dlp)
-├── app/             Flutter native UI (Linux, iOS, Android, macOS, Windows)
-│   └── linux/       GTK3 runner — sets window title, size, background colour
-├── electron/        Electron main + preload (desktop stop-gap wrapping src/)
-├── src/             React UI — web frontend to the API, also hosted by Electron
-└── shell.nix        Nix dev shell (nodejs_22, flutter, jdk17, yt-dlp, git)
+├── electron/        Electron main + preload (desktop shell wrapping src/)
+├── src/             React UI — the app frontend, runs in the browser and in Electron
+└── shell.nix        Nix dev shell (nodejs_22, electron, yt-dlp, git)
 ```
 
 Full architecture and roadmap are in [DEVELOP.md](DEVELOP.md).
@@ -19,24 +17,24 @@ Full architecture and roadmap are in [DEVELOP.md](DEVELOP.md).
 All development happens inside the Nix shell. Enter it once at the start of a session:
 
 ```bash
-nix-shell   # provides node, npm, flutter, jdk17, yt-dlp, git
+nix-shell   # provides node, npm, electron, yt-dlp, git
             # also sets NEOTUBE_SERVER_PATH=$(pwd)/server
 ```
 
-- **Install libraries here** — never `npm install` or `flutter pub add` outside the shell
+- **Install libraries here** — never `npm install` outside the shell
 - **Run all build, test, and run commands from inside the shell**
 - To add a new tool to the environment, add it to `shell.nix` and re-enter the shell
 
 ## Running things
 
 ```bash
-# API server (port 7700) — also started automatically by the Flutter Linux app
+# API server (port 7700)
 cd server && npm run dev
 
-# Flutter Linux desktop (starts server as a child process automatically)
-cd app && flutter run -d linux
+# Electron desktop app (React UI in an Electron shell)
+npm run dev:electron
 
-# React web UI (optional — points at the same API server)
+# React web UI in the browser (optional — points at the same API server)
 npm run dev
 ```
 
@@ -52,23 +50,16 @@ npm run dev
 
 Adding a route: create `server/src/routes/<name>.ts` exporting a default Fastify plugin, then register it in `server/src/index.ts`.
 
-## Flutter app (`app/`)
+## React UI (`src/`) + Electron
 
-- **State**: flutter_riverpod — all async data goes through providers in `lib/providers/providers.dart`
-- **Nav**: go_router — routes defined in `lib/router.dart`; the bottom-nav shell wraps the 5 tab routes; `/watch/:id` and `/channel/:id` are full-screen overlays
-- **API client**: `lib/api/client.dart` — `NeoTubeClient` wraps every server endpoint; always go through this, never call `http` directly from screens
-- **Models**: `lib/models/models.dart` — mirrors `server/src/types.ts`; keep them in sync
-- **Server URL**: stored in `SharedPreferences`, managed by `ServerUrlNotifier`; users set it in Settings
-- **Server lifecycle** (Linux/macOS/Windows): `lib/services/server_manager.dart` spawns the Node.js server as a child process on launch and terminates it on exit; uses `$NEOTUBE_SERVER_PATH` to locate the server directory
+- `src/` is the app frontend; it runs both in the browser and inside Electron (`electron/main.ts` + `electron/preload.ts`)
+- **Routing**: React Router 7 — routes in `src/App.tsx`; `Layout` wraps the tab pages, `/watch/:videoId` and `/channel/:channelId` render inside it
+- **Pages**: `src/pages/<Name>/` (Home, Search, Watch, Channel, Subscriptions, Channels, History, Settings)
+- **Data layer**: PouchDB (browser) via `src/db/`; the plugin system (`src/plugins/`, youtubejs + ytdlp) fetches YouTube data
+- **Electron-only features** (e.g. FreeTube import) are exposed on `window.*` by `electron/preload.ts` and guarded with a runtime check in the page
+- Run in the browser with `npm run dev` (Vite on port 5173); run the desktop app with `npm run dev:electron`
 
-Adding a screen: create `lib/screens/<name>/<name>_screen.dart`, add a route in `router.dart`, and if it needs remote data add a `FutureProvider` in `providers.dart` or co-locate it in the screen file.
-
-## React web UI (`src/`) + Electron
-
-- `src/` is a React frontend to the API server; it runs both in the browser and inside Electron (`electron/main.ts` + `electron/preload.ts`)
-- The plugin system (`src/plugins/`) still calls `http://localhost:7700` directly
-- Run in the browser with `npm run dev` (Vite on port 5173); the API server must be running separately
-- Run the Electron desktop stop-gap with `npm run dev:electron` (run `npm install` first to pull the Electron/Capacitor deps)
+Adding a page: create `src/pages/<Name>/<Name>.tsx` (+ `.css`, `index.ts`), then add a `<Route>` in `src/App.tsx`.
 
 ## Commands
 
@@ -77,18 +68,16 @@ Adding a screen: create `lib/screens/<name>/<name>_screen.dart`, add a route in 
 | Lint (React) | `npm run lint` |
 | Tests (React) | `npm run test:run` |
 | Server dev | `cd server && npm run dev` |
-| Flutter analyze | `cd app && flutter analyze` |
-| Flutter test | `cd app && flutter test` |
-| Flutter Linux run | `cd app && flutter run -d linux` |
-| Flutter Linux build | `cd app && flutter build linux` |
+| Web dev | `npm run dev` |
+| Electron dev | `npm run dev:electron` |
+| Electron build | `npm run build:electron` |
 
 ## Conventions
 
 - TypeScript strict mode everywhere; no `any` unless unavoidable and documented
 - No barrel `index.ts` re-exports in `server/` — import from the exact file
-- Dart: use `const` constructors wherever possible; `debugPrint` not `print`
+- React: pages live in `src/pages/<Name>/`, shared UI in `src/components/<Name>/`; each folder has an `index.ts` re-export
 - Server route files export a single default Fastify plugin function
-- Flutter screens end in `Screen`, widgets don't
 - PouchDB document IDs use a typed prefix: `sub-<channelId>`, `history-<videoId>`, `settings`, `channel-cache-<channelId>`
 
 ## Documentation
@@ -97,7 +86,7 @@ Keep documentation in sync with every code change:
 
 - **`CLAUDE.md`** — update whenever commands, conventions, or project structure change
 - **`DEVELOP.md`** — update the relevant section when adding or removing a significant capability; tick roadmap checkboxes as items complete
-- **`server/src/types.ts` ↔ `app/lib/models/models.dart`** — these must stay in sync; update both when the API contract changes
+- **`server/src/types.ts` ↔ `src/types/index.ts`** — keep the shared API/data types in sync when the contract changes
 
 Do not create separate design or decision documents — use the conversation and `DEVELOP.md` instead.
 
@@ -108,9 +97,6 @@ Run the relevant suite before committing:
 ```bash
 # React (Vitest)
 npm run test:run
-
-# Flutter
-cd app && flutter test
 
 # Server smoke test (no test suite yet)
 cd server && npm run dev &
@@ -127,7 +113,7 @@ All tests must pass before committing. If a test suite doesn't exist for the cha
 4. **Commit message format**:
    - First line: `<Type>: <short imperative summary>` (≤ 72 chars)
    - Types: `Add`, `Fix`, `Refactor`, `Update`, `Remove`, `Docs`
-   - Body (optional): explain *why*, not *what*; reference the area (`server/`, `app/`, `src/`)
+   - Body (optional): explain *why*, not *what*; reference the area (`server/`, `electron/`, `src/`)
    - Always add the co-author trailer: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
 5. **One logical change per commit** — don't bundle unrelated fixes.
 
