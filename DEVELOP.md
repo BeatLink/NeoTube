@@ -8,7 +8,7 @@ NeoTube is a free, open source, privacy-respecting YouTube client. It allows use
 
 ## Architecture
 
-NeoTube uses a **client–server model**. A standalone Node.js server (Fastify + PouchDB + youtubei.js + yt-dlp) runs on the user's machine or LAN and exposes a REST API. Native client apps (Flutter on Linux/mobile/desktop) are thin HTTP clients that call the API and render results. A React/Vite web UI (`src/`) can also connect to the same API. Electron has been removed.
+NeoTube uses a **client–server model**. A standalone Node.js server (Fastify + PouchDB + youtubei.js + yt-dlp) runs on the user's machine or LAN and exposes a REST API. Native client apps (Flutter on Linux/mobile/desktop) are thin HTTP clients that call the API and render results. A React/Vite web UI (`src/`) can also connect to the same API, and an Electron wrapper (`electron/`) packages it as a desktop stop-gap.
 
 ### System diagram
 
@@ -319,7 +319,7 @@ _To be defined._
 - [x] Linux platform files generated (`app/linux/` GTK3 runner)
 - [x] Window title "NeoTube", size 1280×800, centred on launch
 - [x] `ServerManager` — spawns/terminates the Fastify server as a child process on Linux desktop
-- [x] Electron removed; `package.json` cleaned up; `capacitor.config.ts` removed
+- [x] Electron desktop stop-gap retained (`electron/`, `capacitor.config.ts`, `package.json` deps)
 - [ ] Flutter test suite passes (`flutter test`)
 - [ ] Android native project (`flutter build apk`)
 - [ ] iOS native project (`flutter build ipa`)

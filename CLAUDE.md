@@ -7,7 +7,8 @@ NeoTube/
 ├── server/          Node.js REST API server (Fastify + PouchDB + youtubei.js + yt-dlp)
 ├── app/             Flutter native UI (Linux, iOS, Android, macOS, Windows)
 │   └── linux/       GTK3 runner — sets window title, size, background colour
-├── src/             React UI (web-only frontend to the API — Electron removed)
+├── electron/        Electron main + preload (desktop stop-gap wrapping src/)
+├── src/             React UI — web frontend to the API, also hosted by Electron
 └── shell.nix        Nix dev shell (nodejs_22, flutter, jdk17, yt-dlp, git)
 ```
 
@@ -62,11 +63,12 @@ Adding a route: create `server/src/routes/<name>.ts` exporting a default Fastify
 
 Adding a screen: create `lib/screens/<name>/<name>_screen.dart`, add a route in `router.dart`, and if it needs remote data add a `FutureProvider` in `providers.dart` or co-locate it in the screen file.
 
-## React web UI (`src/`)
+## React web UI (`src/`) + Electron
 
-- Electron has been removed — `src/` is now a pure web frontend to the API server
+- `src/` is a React frontend to the API server; it runs both in the browser and inside Electron (`electron/main.ts` + `electron/preload.ts`)
 - The plugin system (`src/plugins/`) still calls `http://localhost:7700` directly
-- Run with `npm run dev` (served by Vite on port 5173); the API server must be running separately
+- Run in the browser with `npm run dev` (Vite on port 5173); the API server must be running separately
+- Run the Electron desktop stop-gap with `npm run dev:electron` (run `npm install` first to pull the Electron/Capacitor deps)
 
 ## Commands
 
