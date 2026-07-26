@@ -120,6 +120,8 @@ export interface VideoPlugin {
     sort?: 'Latest' | 'Popular' | 'Oldest',
   ): Promise<SearchResult[]>
   getChannelPlaylists?(channelId: string, limit?: number): Promise<ChannelPlaylist[]>
+  /** Searches within one channel's full catalogue, not just loaded videos. */
+  searchChannelVideos?(channelId: string, query: string, limit?: number): Promise<SearchResult[]>
   /** Channels this channel features on its home tab. */
   getFeaturedChannels?(channelId: string, limit?: number): Promise<FeaturedChannel[]>
   /**

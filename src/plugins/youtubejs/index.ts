@@ -154,6 +154,20 @@ export class YoutubeJsPlugin implements VideoPlugin {
     return toResults(items)
   }
 
+  async searchChannelVideos(channelId: string, query: string, limit = 30): Promise<SearchResult[]> {
+    const items = await innertube.searchChannelVideos(channelId, query, limit)
+    return items.map(v => ({
+      videoId: v.video_id,
+      title: v.title,
+      channelId,
+      channelName: '',
+      thumbnail: v.thumbnail,
+      duration: v.duration,
+      viewCountText: v.view_count_text,
+      publishedText: v.published_text,
+    }))
+  }
+
   async getFeaturedChannels(channelId: string, limit = 24): Promise<FeaturedChannel[]> {
     const items = await innertube.getFeaturedChannels(channelId, limit)
     return items.map(c => ({

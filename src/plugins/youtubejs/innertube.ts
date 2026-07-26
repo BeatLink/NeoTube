@@ -333,6 +333,55 @@ export async function getFeaturedChannels(channelId: string, limit: number) {
   return featured
 }
 
+/**
+ * Searches within a single channel.
+ *
+ * Covers the channel's whole catalogue, not just the videos already fetched
+ * into the grid, so it finds old uploads the page has not paged to yet.
+ */
+export async function searchChannelVideos(
+  channelId: string,
+  query: string,
+  limit: number,
+) {
+  const yt = await getClient()
+  const channel = await yt.getChannel(channelId) as any
+  if (typeof channel?.search !== 'function') return []
+
+  let results: any
+  try { results = await channel.search(query) } catch { return [] }
+
+  // Search returns flat `Video` objects, not the `LockupView` shape the channel
+  // grid uses, so these fields are read directly rather than via
+  // parseChannelVideos().
+  const raw: any[] = results?.videos ?? results?.items ?? results?.contents ?? []
+  return raw
+    .map((v: any): RawChannelVideo | null => {
+      const id: string | undefined = v?.video_id ?? v?.id
+      if (!id) return null
+      const thumbs: Array<{ url: string }> = v?.thumbnails ?? []
+      return {
+        video_id: id,
+        title: v?.title?.text ?? '',
+        thumbnail: thumbs.length > 0 ? thumbs[0].url : '',
+        duration: (v?.duration?.seconds ?? parseDurationText(v?.length_text?.text)) as number,
+        // short_view_count is pre-abbreviated ("28M views"); view_count is exact.
+        view_count_text: (v?.short_view_count?.text ?? v?.view_count?.text ?? '') as string,
+        published_text: (v?.published?.text ?? '') as string,
+      }
+    })
+    .filter(Boolean)
+    .slice(0, limit) as RawChannelVideo[]
+}
+
+/** Parses "10:23" or "1:02:03" into seconds. */
+function parseDurationText(text?: string): number {
+  if (!text) return 0
+  const parts = text.split(':').map(Number)
+  if (parts.some(Number.isNaN)) return 0
+  return parts.reduce((total, part) => total * 60 + part, 0)
+}
+
 export async function getChannelPlaylists(channelId: string, limit: number) {
   const yt = await getClient()
   const channel = await yt.getChannel(channelId) as any

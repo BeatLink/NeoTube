@@ -157,3 +157,31 @@
   font-size: 0.8rem;
   color: var(--text-muted);
 }
+
+/* ── In-channel search ─────────────────────────────────────────────────────── */
+
+.channel-search {
+  display: flex;
+}
+
+.channel-search-input {
+  padding: 6px 12px;
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.channel-search-input::placeholder { color: var(--text-muted); }
+
+.channel-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.channel-sort:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

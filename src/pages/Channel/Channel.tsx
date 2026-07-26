@@ -80,6 +80,12 @@ export default function Channel() {
   const [hideWatched, setHideWatched] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [sortMode, setSortMode] = useState<SortMode>('Latest')
+  // Draft is what the user is typing; `search` is the submitted query. Kept
+  // apart so a request only fires on submit, not on every keystroke.
+  const [searchDraft, setSearchDraft] = useState('')
+  const [search, setSearch] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null)
+  const [searching, setSearching] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -109,10 +115,14 @@ export default function Channel() {
     setLoadingInfo(true)
     setInfo(null)
     setPlaylists(null)
-    setFeatured(null)
+    // `featured` is owned by its own effect below — clearing it here would race
+    // with that fetch and blank out results it had already stored.
     setTab('videos')
     setError('')
     setSortMode('Latest')
+    setSearchDraft('')
+    setSearch('')
+    setSearchResults(null)
 
     let cancelled = false
     getChannelInfoCached(channelId)
@@ -175,6 +185,7 @@ export default function Channel() {
     if (!plugin.getFeaturedChannels) { setFeatured([]); return }
 
     let cancelled = false
+    setFeatured(null)
     setLoadingFeatured(true)
     plugin
       .getFeaturedChannels(channelId)
@@ -182,6 +193,21 @@ export default function Channel() {
       .catch(() => { if (!cancelled) { setFeatured([]); setLoadingFeatured(false) } })
     return () => { cancelled = true }
   }, [channelId])
+
+  useEffect(() => {
+    if (!channelId || !search) { setSearchResults(null); return }
+    const plugin = pluginManager.getActive()
+    if (!plugin.searchChannelVideos) { setSearchResults([]); return }
+
+    let cancelled = false
+    setSearching(true)
+    setVisibleCount(PAGE_SIZE)
+    plugin
+      .searchChannelVideos(channelId, search)
+      .then(r => { if (!cancelled) { setSearchResults(r); setSearching(false) } })
+      .catch(() => { if (!cancelled) { setSearchResults([]); setSearching(false) } })
+    return () => { cancelled = true }
+  }, [channelId, search])
 
   // Reveal another chunk of the grid when the sentinel scrolls into view.
   useEffect(() => {
@@ -267,12 +293,31 @@ export default function Channel() {
           )}
           {tab === 'videos' && (
             <>
+              <form
+                className="channel-search"
+                style={{ marginLeft: 'auto' }}
+                onSubmit={e => { e.preventDefault(); setSearch(searchDraft.trim()) }}
+              >
+                <input
+                  type="search"
+                  className="channel-search-input"
+                  placeholder="Search this channel…"
+                  value={searchDraft}
+                  onChange={e => {
+                    setSearchDraft(e.target.value)
+                    // Clearing the box returns to the full list immediately.
+                    if (!e.target.value) setSearch('')
+                  }}
+                  aria-label="Search this channel"
+                />
+              </form>
               <select
                 className="channel-sort"
                 value={sortMode}
                 onChange={e => setSortMode(e.target.value as SortMode)}
                 aria-label="Sort videos"
-                style={{ marginLeft: 'auto' }}
+                disabled={!!search}
+                title={search ? 'Sorting applies to the full list' : undefined}
               >
                 {SORT_OPTIONS.map(o => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -293,42 +338,50 @@ export default function Channel() {
         </div>
       }
     >
-      {tab === 'videos' && (
-        videos === null
-          ? <p className="channel-tab-status">Loading videos…</p>
-          : videos.length === 0
-            ? <p className="channel-tab-status">No videos found.</p>
-            : (() => {
-                // Already ordered by YouTube; only watched-filtering remains.
-                const visibleVideos = shouldHide
-                  ? videos.filter(v => !watchedIds.has(v.videoId))
-                  : videos
-                // A channel can return hundreds of videos; render them in
-                // chunks so the grid stays responsive.
-                const shown = visibleVideos.slice(0, visibleCount)
-                return (
-                  <>
-                    <ul className="video-grid">
-                      {shown.map(v => (
-                        <VideoCard
-                          key={v.videoId}
-                          videoId={v.videoId}
-                          title={v.title}
-                          thumbnail={v.thumbnail}
-                          duration={v.duration}
-                          viewCountText={v.viewCountText}
-                          publishedText={v.publishedText}
-                          dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
-                        />
-                      ))}
-                    </ul>
-                    {visibleCount < visibleVideos.length && (
-                      <div ref={sentinelRef} className="channel-sentinel" aria-hidden="true" />
-                    )}
-                  </>
-                )
-              })()
-      )}
+      {tab === 'videos' && (() => {
+        if (searching) return <p className="channel-tab-status">Searching…</p>
+
+        // A search replaces the grid until the box is cleared.
+        const source = search ? searchResults : videos
+        if (source === null) return <p className="channel-tab-status">Loading videos…</p>
+        if (source.length === 0) {
+          return (
+            <p className="channel-tab-status">
+              {search ? `No videos matching "${search}".` : 'No videos found.'}
+            </p>
+          )
+        }
+
+        // Already ordered by YouTube; only watched-filtering remains.
+        const visibleVideos = shouldHide
+          ? source.filter(v => !watchedIds.has(v.videoId))
+          : source
+        // A channel can return hundreds of videos; render them in chunks so the
+        // grid stays responsive.
+        const shown = visibleVideos.slice(0, visibleCount)
+
+        return (
+          <>
+            <ul className="video-grid">
+              {shown.map(v => (
+                <VideoCard
+                  key={v.videoId}
+                  videoId={v.videoId}
+                  title={v.title}
+                  thumbnail={v.thumbnail}
+                  duration={v.duration}
+                  viewCountText={v.viewCountText}
+                  publishedText={v.publishedText}
+                  dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
+                />
+              ))}
+            </ul>
+            {visibleCount < visibleVideos.length && (
+              <div ref={sentinelRef} className="channel-sentinel" aria-hidden="true" />
+            )}
+          </>
+        )
+      })()}
 
       {tab === 'playlists' && (
         loadingPlaylists
