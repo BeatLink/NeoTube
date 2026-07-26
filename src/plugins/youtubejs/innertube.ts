@@ -110,8 +110,18 @@ export interface RawComment {
   like_count: string
   published_text: string
   reply_count: string
+  has_replies: boolean
   is_pinned: boolean
 }
+
+/**
+ * Comment threads from the most recent fetch, keyed by video then comment id.
+ *
+ * Replies are loaded on demand and the continuation lives on the thread object,
+ * which cannot be serialised — so the objects are held here rather than being
+ * returned to the caller.
+ */
+const _replyThreads = new Map<string, Map<string, any>>()
 
 /**
  * Fetches top-level comments for a video.
@@ -124,7 +134,15 @@ export async function getComments(videoId: string, limit = 20) {
   let thread: any
   try { thread = await yt.getComments(videoId) } catch { return { comments: [], total_text: '' } }
 
+  // Keep the thread objects around so replies can be fetched lazily.
   const raw: any[] = thread?.contents ?? thread?.comments ?? []
+  const threads = new Map<string, any>()
+  for (const item of raw) {
+    const id = (item?.comment ?? item)?.comment_id
+    if (id) threads.set(id, item)
+  }
+  _replyThreads.set(videoId, threads)
+
   const comments: RawComment[] = raw
     .map((item: any) => {
       const c = item?.comment ?? item
@@ -141,6 +159,7 @@ export async function getComments(videoId: string, limit = 20) {
         like_count: (c.like_count ?? '') as string,
         published_text: (c.published_time ?? '') as string,
         reply_count: (c.reply_count ?? '') as string,
+        has_replies: !!item?.has_replies,
         is_pinned: !!c.is_pinned,
       }
     })
@@ -150,6 +169,41 @@ export async function getComments(videoId: string, limit = 20) {
     comments: comments.slice(0, limit),
     total_text: (thread?.header?.count?.text ?? '') as string,
   }
+}
+
+/** Replies to a single comment. Empty if the thread is gone or has none. */
+export async function getCommentReplies(
+  videoId: string,
+  commentId: string,
+): Promise<RawComment[]> {
+  const item = _replyThreads.get(videoId)?.get(commentId)
+  if (!item || typeof item.getReplies !== 'function') return []
+
+  let result: any
+  try { result = await item.getReplies() } catch { return [] }
+
+  const raw: any[] = result?.replies ?? result?.contents ?? []
+  return raw
+    .map((reply: any) => {
+      const c = reply?.comment ?? reply
+      if (!c?.comment_id) return null
+      const thumbs: Array<{ url: string; width?: number }> = c?.author?.thumbnails ?? []
+      return {
+        comment_id: c.comment_id as string,
+        author: (c.author?.name ?? '') as string,
+        author_avatar: (thumbs.length
+          ? [...thumbs].sort((x, y) => (y.width ?? 0) - (x.width ?? 0))[0].url
+          : '') as string,
+        author_is_owner: !!c.author_is_channel_owner,
+        text: (c.content?.text ?? '') as string,
+        like_count: (c.like_count ?? '') as string,
+        published_text: (c.published_time ?? '') as string,
+        reply_count: '',
+        has_replies: false,
+        is_pinned: false,
+      }
+    })
+    .filter(Boolean) as RawComment[]
 }
 
 export async function search(query: string, limit: number) {

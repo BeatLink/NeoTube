@@ -1,6 +1,6 @@
 import * as innertube from './innertube'
 import type { ChannelSort } from './innertube'
-import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, ChannelPlaylist, PlaylistDetail, FeaturedChannel, ChannelSearchResult, CommentThread, StreamUrl } from '../types'
+import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, ChannelPlaylist, PlaylistDetail, FeaturedChannel, ChannelSearchResult, Comment, CommentThread, StreamUrl } from '../types'
 
 interface YtjsRawFormat {
   url?: string
@@ -80,9 +80,26 @@ export class YoutubeJsPlugin implements VideoPlugin {
         likeCount: c.like_count,
         publishedText: c.published_text,
         replyCount: c.reply_count,
+        hasReplies: c.has_replies,
         isPinned: c.is_pinned,
       })),
     }
+  }
+
+  async getCommentReplies(videoId: string, commentId: string): Promise<Comment[]> {
+    const raw = await innertube.getCommentReplies(videoId, commentId)
+    return raw.map(c => ({
+      commentId: c.comment_id,
+      author: c.author,
+      authorAvatar: c.author_avatar,
+      authorIsOwner: c.author_is_owner,
+      text: c.text,
+      likeCount: c.like_count,
+      publishedText: c.published_text,
+      replyCount: c.reply_count,
+      hasReplies: c.has_replies,
+      isPinned: c.is_pinned,
+    }))
   }
 
   async getDashManifest(videoId: string): Promise<string | null> {

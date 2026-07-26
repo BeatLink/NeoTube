@@ -21,6 +21,8 @@ export interface Comment {
   likeCount: string
   publishedText: string
   replyCount: string
+  /** Whether a replies thread can be fetched for this comment. */
+  hasReplies: boolean
   isPinned: boolean
 }
 
@@ -162,6 +164,8 @@ export interface VideoPlugin {
   searchChannelVideos?(channelId: string, query: string, limit?: number): Promise<SearchResult[]>
   /** Top-level comments for a video. */
   getComments?(videoId: string, limit?: number): Promise<CommentThread>
+  /** Replies to one comment. Requires getComments() to have run for the video. */
+  getCommentReplies?(videoId: string, commentId: string): Promise<Comment[]>
   /** Fetches a playlist and its videos. */
   getPlaylist?(playlistId: string, limit?: number): Promise<PlaylistDetail>
   /** Channels this channel features on its home tab. */

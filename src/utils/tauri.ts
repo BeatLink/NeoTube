@@ -12,6 +12,44 @@ export function isTauri(): boolean {
 const YT_ORIGIN = 'https://www.youtube.com'
 
 /**
+ * Repairs YouTube payloads that youtubei.js 17.2.0 cannot parse.
+ *
+ * Two live schema changes break it, both in comments:
+ *
+ *  - `commentEntityPayload.avatar` is now sometimes absent, and the parser
+ *    dereferences `avatar.endpoint` unguarded, throwing for the whole response.
+ *  - Comment replies moved from `commentRepliesRenderer.contents` to
+ *    `subThreads`, so the continuation token is never found and `getReplies()`
+ *    throws "Replies continuation not found".
+ *
+ * Patching the response in transit keeps the fix in one place and lets the
+ * library's own parsing work unchanged. Remove this once upstream catches up.
+ */
+export function repairYouTubePayload(node: unknown): void {
+  if (!node || typeof node !== 'object') return
+  const obj = node as Record<string, any>
+
+  const mutations = obj.frameworkUpdates?.entityBatchUpdate?.mutations
+  if (Array.isArray(mutations)) {
+    for (const mutation of mutations) {
+      const comment = mutation?.payload?.commentEntityPayload
+      if (comment && comment.author && !comment.avatar) {
+        comment.avatar = { endpoint: undefined, image: { sources: [] } }
+      }
+    }
+  }
+
+  const replies = obj.commentRepliesRenderer
+  if (replies && !replies.contents?.length && Array.isArray(replies.subThreads)) {
+    replies.contents = replies.subThreads
+  }
+
+  for (const value of Array.isArray(obj) ? obj : Object.values(obj)) {
+    repairYouTubePayload(value)
+  }
+}
+
+/**
  * `fetch` backed by Rust's HTTP stack, so requests are not subject to the
  * webview's CORS enforcement. This is what lets youtubei.js talk to YouTube
  * directly. Hosts must be allow-listed in `src-tauri/capabilities/default.json`.
@@ -40,11 +78,32 @@ export async function tauriFetch(
     ? undefined
     : await request.arrayBuffer()
 
-  return httpFetch(request.url, {
+  const response = await httpFetch(request.url, {
     method: request.method,
     headers,
     body,
   })
+
+  // Only InnerTube responses need repairing, and only JSON ones can be.
+  if (!response.headers.get('content-type')?.includes('json')) return response
+
+  const text = await response.text()
+  try {
+    const data = JSON.parse(text)
+    repairYouTubePayload(data)
+    return new Response(JSON.stringify(data), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    })
+  } catch {
+    // Not JSON after all — hand back what we received.
+    return new Response(text, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    })
+  }
 }
 
 /**
