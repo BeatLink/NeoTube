@@ -264,6 +264,7 @@ describe('Subscriptions page', () => {
     mockGetSubscriptions.mockResolvedValueOnce([
       { _id: 'sub-UC1', type: 'subscription', channelId: 'UC1', channelName: 'Cool Channel', subscribedAt: '2024-01-01T00:00:00Z' },
     ])
+    mockIsSubscribed.mockResolvedValue(true)
     render(<Subscriptions />, { wrapper })
     const btn = await screen.findByRole('button', { name: /unsubscribe from Cool Channel/i })
     await userEvent.click(btn)

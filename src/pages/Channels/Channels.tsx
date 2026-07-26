@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { getSubscriptions, unsubscribe, getWatchedChannelIds, getSettings, saveSettings } from '../../db/index'
+import { getSubscriptions, getWatchedChannelIds, getSettings, saveSettings } from '../../db/index'
 import PageLayout from '../../components/PageLayout'
+import ChannelCard from '../../components/ChannelCard'
 import ToggleButton from '../../components/ToggleButton'
-import Button from '../../components/Button'
 import type { Subscription } from '../../types'
 import './Channels.css'
 
@@ -29,11 +28,6 @@ export default function Channels() {
     window.addEventListener('history-changed', refresh)
     return () => window.removeEventListener('history-changed', refresh)
   }, [])
-
-  async function handleUnsubscribe(channelId: string) {
-    await unsubscribe(channelId)
-    setSubs(prev => prev.filter(s => s.channelId !== channelId))
-  }
 
   let visible = hideWatched
     ? subs.filter(s => !watchedChannelIds.has(s.channelId))
@@ -78,27 +72,18 @@ export default function Channels() {
             : `No channels match "${filter}".`}
         </p>
       ) : (
-        <ul className="subs-grid">
+        <ul className="channel-grid">
           {visible.map(sub => (
-            <li key={sub.channelId} className="subs-card">
-              <Link to={`/channel/${sub.channelId}`} className="subs-card-link">
-                {sub.avatar
-                  ? <img className="subs-card-avatar" src={sub.avatar} alt="" loading="lazy" />
-                  : <div className="subs-card-avatar subs-card-avatar-initial" aria-hidden="true">
-                      {sub.channelName.charAt(0).toUpperCase()}
-                    </div>
-                }
-                <p className="subs-card-name">{sub.channelName}</p>
-              </Link>
-              <Button
-                size="sm"
-                className="subs-card-unsub"
-                onClick={() => handleUnsubscribe(sub.channelId)}
-                aria-label={`Unsubscribe from ${sub.channelName}`}
-              >
-                Unsubscribe
-              </Button>
-            </li>
+            <ChannelCard
+              key={sub.channelId}
+              channelId={sub.channelId}
+              name={sub.channelName}
+              avatar={sub.avatar}
+              // Drop the card from this list as soon as it's unsubscribed.
+              onSubscriptionChange={subscribed => {
+                if (!subscribed) setSubs(prev => prev.filter(s => s.channelId !== sub.channelId))
+              }}
+            />
           ))}
         </ul>
       )}
