@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTheme } from '../../contexts/ThemeContext'
 import { pluginManager } from '../../plugins/manager'
 import { saveSettings, getSettings, subscribe, recordWatch } from '../../db/index'
+import { STARTUP_PAGES, type StartupPage } from '../../types'
 import { setCookie as ytjsSetCookie } from '../../plugins/youtubejs/innertube'
 import { downloadAvatar } from '../../utils/avatar'
 import { isTauri, freetubeScan, freetubeReadData } from '../../utils/tauri'
@@ -32,9 +33,8 @@ type ImportPhase =
 
 export default function Settings() {
   const { theme, setTheme } = useTheme()
-  const [activePlugin, setActivePluginState] = useState(pluginManager.getActive().id)
   const [watchedStyle, setWatchedStyleState] = useState<'normal' | 'dim' | 'hide'>('normal')
-  const plugins = pluginManager.list()
+  const [startupPage, setStartupPageState] = useState<StartupPage>('subscriptions')
 
   const [importState, setImportState] = useState<ImportPhase>({ status: 'idle' })
   const [importSubs, setImportSubs] = useState(true)
@@ -45,8 +45,8 @@ export default function Settings() {
 
   useEffect(() => {
     getSettings().then(s => {
-      setActivePluginState(s.activePlugin)
       setWatchedStyleState(s.watchedVideoStyle ?? 'normal')
+      setStartupPageState(s.startupPage ?? 'subscriptions')
       setYtCookieDraft(s.ytCookie ?? '')
       setYtCookieSaved(!!(s.ytCookie))
     }).catch(() => {})
@@ -66,14 +66,9 @@ export default function Settings() {
     setYtCookieSaved(false)
   }
 
-  function handlePluginChange(id: string) {
-    try {
-      pluginManager.setActive(id)
-      setActivePluginState(id)
-      saveSettings({ activePlugin: id }).catch(() => {})
-    } catch (e) {
-      console.error(e)
-    }
+  function handleStartupPageChange(page: string) {
+    setStartupPageState(page as StartupPage)
+    saveSettings({ startupPage: page as StartupPage }).catch(() => {})
   }
 
   function handleWatchedStyleChange(style: 'normal' | 'dim' | 'hide') {
@@ -147,7 +142,6 @@ export default function Settings() {
   }
 
   const isDesktop = isTauri()
-  const activePluginInfo = plugins.find(p => p.id === activePlugin)
 
   return (
     <PageLayout title="Settings">
@@ -180,19 +174,14 @@ export default function Settings() {
           />
         </section>
 
-        {/* ── Video Source ── */}
+        {/* ── Startup Page ── */}
         <section className="settings-section">
-          <h3 className="settings-section-title">Video Source</h3>
+          <h3 className="settings-section-title">Startup Page</h3>
           <MenuButton
-            options={plugins.map(p => ({ value: p.id, label: p.name }))}
-            value={activePlugin}
-            onChange={handlePluginChange}
+            options={STARTUP_PAGES.map(p => ({ value: p.value, label: p.label }))}
+            value={startupPage}
+            onChange={handleStartupPageChange}
           />
-          {activePluginInfo && (
-            <div className="plugin-info">
-              <p>{activePluginInfo.description}</p>
-            </div>
-          )}
         </section>
 
         {/* ── YouTube Account ── */}

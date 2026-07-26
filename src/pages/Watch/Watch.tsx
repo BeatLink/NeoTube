@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { pluginManager } from '../../plugins/manager'
 import type { VideoInfo } from '../../plugins/types'
 import { isSubscribed, subscribe, unsubscribe, recordWatch } from '../../db/index'
-import { downloadAvatar } from '../../utils/avatar'
+import { downloadAvatar, thumbnailUrl } from '../../utils/avatar'
 import VideoPlayer from '../../components/VideoPlayer'
 import Button from '../../components/Button'
 import './Watch.css'
@@ -46,12 +46,12 @@ export default function Watch() {
         if (cancelled) return
         setState({ status: 'ready', info })
         isSubscribed(info.channelId).then(setSubscribed)
-        // Download thumbnail blob before saving so history entries are self-contained
-        ;(async () => {
-          const blob = await downloadAvatar(info.thumbnail)
-          recordWatch(info.videoId, info.title, info.channelId, info.channelName, blob ?? info.thumbnail, info.duration)
-            .catch(() => {})
-        })()
+        // The thumbnail is stored as a URL; <img loading="lazy"> fetches it when
+        // the entry actually scrolls into view on the History page.
+        recordWatch(
+          info.videoId, info.title, info.channelId, info.channelName,
+          thumbnailUrl(info.thumbnail, info.videoId), info.duration,
+        ).catch(() => {})
       })
       .catch((err: Error) => {
         if (!cancelled) setState({ status: 'error', message: err.message })

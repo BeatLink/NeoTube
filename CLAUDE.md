@@ -57,7 +57,7 @@ Adding a route: create `server/src/routes/<name>.ts` exporting a default Fastify
 
 - `src/` is the app; it runs in the Tauri webview and in a plain browser
 - **Routing**: React Router 7 — routes in `src/App.tsx`; `Layout` wraps the tab pages, `/watch/:videoId` and `/channel/:channelId` render inside it
-- **Pages**: `src/pages/<Name>/` (Home, Search, Watch, Channel, Subscriptions, Channels, History, Settings)
+- **Pages**: `src/pages/<Name>/` (Search, Watch, Channel, Subscriptions, Channels, History, Settings). There is no Home page — `/` redirects to the user's configured startup page.
 - **Data layer**: PouchDB (browser) via `src/db/`; the plugin system (`src/plugins/`, youtubejs only) fetches YouTube data
 - **Desktop-only features** (e.g. FreeTube import) are Rust commands in `src-tauri/src/`, wrapped in `src/utils/tauri.ts` and guarded with `isTauri()` in the page
 
@@ -76,6 +76,23 @@ non-obvious rules, both enforced by `tests/tauriFetch.test.ts`:
 Adding a native command: write it in `src-tauri/src/`, register it in the
 `invoke_handler!` list in `src-tauri/src/lib.rs`, then wrap it in `src/utils/tauri.ts`.
 New outbound hosts must be allow-listed in `src-tauri/capabilities/default.json`.
+
+### Video playback — why it isn't just `<video src>`
+
+YouTube stops muxing video+audio at **360p**; every higher quality is an adaptive
+(video-only) stream that must be combined with a separate audio stream via MSE. So the
+player feeds a DASH manifest to dash.js rather than setting `src` directly:
+
+- `getDashManifest()` in `src/plugins/youtubejs/innertube.ts` calls `info.toDash()`.
+- **Use the `IOS` Innertube client.** It's the only one whose stream URLs need no
+  signature deciphering; WEB/ANDROID/TV require a JS evaluator we don't ship.
+- Segments are proxied through `ytstream://` (`src-tauri/src/stream.rs`) because
+  `googlevideo.com` sends no `Access-Control-Allow-Origin`, so the webview would
+  otherwise discard the response. Note this is the *opposite* problem to the fetch
+  shim above — here the request succeeds and the *response* is blocked.
+- Each resolution is published in several codecs (vp9/av01/avc1), so the quality
+  list must be de-duplicated by height — see `toQualityOptions` and
+  `tests/videoPlayer.test.ts`.
 
 Adding a page: create `src/pages/<Name>/<Name>.tsx` (+ `.css`, `index.ts`), then add a `<Route>` in `src/App.tsx`.
 

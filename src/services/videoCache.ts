@@ -1,9 +1,7 @@
-import { getCachedChannelVideos, setCachedChannelVideos, updateHistoryThumbnail } from '../db/index'
+import { getCachedChannelVideos, setCachedChannelVideos } from '../db/index'
 import { pluginManager } from '../plugins/manager'
-import { downloadAvatar, downloadVideosWithThumbnailBlobs } from '../utils/avatar'
-import type { CachedVideo, WatchHistoryEntry } from '../types'
-
-const YT_THUMB = (videoId: string) => `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+import { thumbnailUrl } from '../utils/avatar'
+import type { CachedVideo } from '../types'
 
 async function fetchAndPersist(
   channelId: string,
@@ -12,13 +10,13 @@ async function fetchAndPersist(
 ): Promise<CachedVideo[]> {
   const plugin = pluginManager.getActive()
   const fresh = await (plugin.getChannelVideos?.(channelId, limit) ?? Promise.resolve([]))
-  const withBlobs = await downloadVideosWithThumbnailBlobs(fresh)
-  const videos: CachedVideo[] = withBlobs.map(v => ({
+  // Thumbnails are stored as URLs, not downloaded blobs — see thumbnailUrl().
+  const videos: CachedVideo[] = fresh.map(v => ({
     videoId: v.videoId,
     title: v.title,
     channelId: v.channelId ?? channelId,
     channelName: v.channelName ?? '',
-    thumbnail: v.thumbnail,
+    thumbnail: thumbnailUrl(v.thumbnail, v.videoId),
     duration: v.duration,
     viewCount: v.viewCount,
     publishedAt: v.publishedAt,
@@ -56,25 +54,7 @@ export async function refreshChannelVideos(
   return fetchAndPersist(channelId, limit, onFresh)
 }
 
-/**
- * Downloads thumbnail blobs for history entries that don't already have one.
- * Processes in batches; for each successful download, persists to DB and
- * calls onEach so the caller can update UI incrementally.
- */
-export async function cacheHistoryThumbnails(
-  entries: WatchHistoryEntry[],
-  onEach?: (videoId: string, dataUri: string) => void,
-  batchSize = 10,
-): Promise<void> {
-  const toFetch = entries.filter(e => !e.thumbnail?.startsWith('data:'))
-  for (let i = 0; i < toFetch.length; i += batchSize) {
-    await Promise.allSettled(toFetch.slice(i, i + batchSize).map(async entry => {
-      const url = entry.thumbnail || YT_THUMB(entry.videoId)
-      const blob = await downloadAvatar(url)
-      if (blob) {
-        await updateHistoryThumbnail(entry.videoId, blob)
-        onEach?.(entry.videoId, blob)
-      }
-    }))
-  }
-}
+// History thumbnails are no longer downloaded and inlined as base64. Doing so
+// meant thousands of requests and a multi-megabyte database that slowed every
+// read; `<img loading="lazy">` fetches only what is on screen and lets the
+// webview cache it.

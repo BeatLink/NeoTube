@@ -68,12 +68,23 @@ export interface ChannelVideoCache {
   fetchedAt: string
 }
 
+/** Pages that can be chosen as the launch destination. */
+export type StartupPage = 'subscriptions' | 'channels' | 'history'
+
+export const STARTUP_PAGES: ReadonlyArray<{ value: StartupPage; label: string }> = [
+  { value: 'subscriptions', label: 'Subscriptions' },
+  { value: 'channels', label: 'Channels' },
+  { value: 'history', label: 'History' },
+]
+
 export interface UserSettings {
   _id: 'settings'
   _rev?: string
   type: 'settings'
   theme: 'light' | 'dark' | 'system'
   activePlugin: string
+  /** Route rendered on launch, e.g. 'subscriptions'. */
+  startupPage: StartupPage
   defaultQuality: '144p' | '360p' | '720p' | '1080p' | 'best'
   privacyMode: boolean
   watchedVideoStyle: 'normal' | 'dim' | 'hide'

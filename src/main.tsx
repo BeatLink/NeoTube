@@ -4,9 +4,13 @@ import './index.css'
 import App from './App.tsx'
 import { pluginManager } from './plugins/manager'
 import { YoutubeJsPlugin } from './plugins/youtubejs/index'
-import { getSettings } from './db/index'
+import { getSettings, stripInlinedThumbnails } from './db/index'
 
 pluginManager.register(new YoutubeJsPlugin())
+
+// Reclaim space from the old base64-thumbnail scheme. Runs in the background:
+// nothing on screen depends on it, and it no-ops once the data is clean.
+stripInlinedThumbnails().catch(() => {})
 
 // Restore saved plugin + per-plugin config, falling back to auto-select
 getSettings()

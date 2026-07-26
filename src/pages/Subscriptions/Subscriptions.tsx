@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSubscriptions, getSettings, saveSettings, getWatchedVideoIds, getAllCachedChannelVideos } from '../../db/index'
+import { getSubscriptions, getSettings, saveSettings, getWatchedVideoIds, getAllCachedChannelVideos, getStaleChannelIds } from '../../db/index'
 import { refreshChannelVideos } from '../../services/videoCache'
 import PageLayout from '../../components/PageLayout'
 import VideoCard from '../../components/VideoCard'
@@ -61,9 +61,15 @@ export default function Subscriptions() {
       }))
       setInitialising(false)
 
-      for (let i = 0; i < subs.length; i += BATCH_SIZE) {
+      // Refresh only channels whose cache has expired. Without this every visit
+      // refetched all subscriptions, which dominated the page's load time.
+      const staleIds = await getStaleChannelIds(subs.map(s => s.channelId))
+      if (cancelled) return
+      const toRefresh = subs.filter(s => staleIds.has(s.channelId))
+
+      for (let i = 0; i < toRefresh.length; i += BATCH_SIZE) {
         if (cancelled) break
-        const batch = subs.slice(i, i + BATCH_SIZE)
+        const batch = toRefresh.slice(i, i + BATCH_SIZE)
         await Promise.allSettled(batch.map(async sub => {
           try {
             await refreshChannelVideos(

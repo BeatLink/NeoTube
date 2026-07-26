@@ -65,6 +65,8 @@ graph TB
 - **CORS is bypassed via Rust, not header rewriting.** `tauri-plugin-http` performs requests outside the webview, so its CORS rules never apply. The single seam is `Innertube.create({ fetch })` in `src/plugins/youtubejs/innertube.ts`.
 - **`Origin` must be pinned, not stripped.** InnerTube answers `403` to any cross-origin `Origin` value (an empty one included), so `src/utils/tauri.ts` sets `Origin`/`Referer` to `https://www.youtube.com`. Deleting them does not work: `@tauri-apps/plugin-http` builds its own `Request` internally and merges the webview's headers back in for any key the caller left unset. See `tests/tauriFetch.test.ts`.
 - **yt-dlp is server-side only.** The desktop client uses youtubei.js exclusively; the binary is still spawned by the Fastify process for `/api/video/:id?backend=ytdlp`.
+- **Adaptive streams need a proxy.** `googlevideo.com` serves cross-origin segment requests but returns no `Access-Control-Allow-Origin`, so the webview blocks the response before dash.js can read it. `src-tauri/src/stream.rs` registers a `ytstream://` scheme that proxies segments and adds the missing header; `toDash({ url_transformer })` rewrites the manifest to use it.
+- **The IOS Innertube client is used for playback.** It is the only one returning stream URLs that need no signature deciphering — WEB/ANDROID/TV all require running YouTube's player script in a JS evaluator we don't ship.
 - **Native capabilities live in Rust.** The FreeTube importer needs filesystem access the webview lacks, so it is a `#[tauri::command]` in `src-tauri/src/freetube.rs`. Pages feature-detect via `isTauri()` and degrade gracefully in the browser.
 - **One fetch shim serves desktop and mobile.** Tauri v2 targets Android/iOS with the same Rust HTTP stack, so no per-platform branch is needed.
 
@@ -136,7 +138,8 @@ NeoTube/
 │   ├── src/
 │   │   ├── main.rs            # Binary entry point
 │   │   ├── lib.rs             # Builder — registers plugins and commands
-│   │   └── freetube.rs        # FreeTube import (filesystem access)
+│   │   ├── freetube.rs        # FreeTube import (filesystem access)
+│   │   └── stream.rs          # ytstream:// media segment proxy (CORS)
 │   ├── capabilities/          # Permission scopes (allow-listed HTTP hosts)
 │   ├── tauri.conf.json        # Window, CSP, bundle config
 │   └── Cargo.toml
@@ -144,7 +147,7 @@ NeoTube/
 ├── src/                       # React UI — the app itself (webview + browser)
 │   ├── App.tsx                # React Router routes + Layout shell
 │   ├── components/            # Shared UI (Button, VideoCard, PageLayout, …)
-│   ├── pages/                 # Home, Search, Watch, Channel, Subscriptions, Channels, History, Settings
+│   ├── pages/                 # Search, Watch, Channel, Subscriptions, Channels, History, Settings
 │   ├── plugins/               # Plugin system (youtubejs)
 │   ├── db/                    # PouchDB access layer (browser)
 │   ├── utils/tauri.ts         # Tauri detection, fetch shim, native bridges
@@ -167,6 +170,7 @@ NeoTube/
 | YouTube data | youtubei.js 17 |
 | Video download | yt-dlp (server only) |
 | Client UI | React 19 |
+| Adaptive playback | dash.js 5 (MSE) |
 | Desktop shell | Tauri 2 (Rust + WebKitGTK / WKWebView / WebView2) |
 | React bundler | Vite 8 |
 | React routing | React Router 7 |
@@ -201,7 +205,9 @@ npm run dev
 ## Features
 
 ### Playback
-- Video playback via youtube.js (the desktop client's only backend)
+- Adaptive DASH playback up to 2160p via dash.js — YouTube only muxes video+audio to 360p, so higher qualities arrive as separate streams
+- Quality dropdown overlaid on the player (Auto + every available resolution)
+- Fullscreen toggle (button or double-click)
 - Quality selection from available streams
 - Watch page: title, channel link, subscribe button, view count, collapsible description
 - YouTube cookie auth (Settings → YouTube Account): paste session cookie to unlock 720p+ adaptive streams via youtube.js
@@ -230,7 +236,7 @@ npm run dev
 
 ### Settings
 - Light / dark theme
-- Active backend selector (youtube.js)
+- Startup page (Subscriptions / Channels / History)
 - Previously watched video style (Normal / Dim / Hide)
 - YouTube session cookie: stored in PouchDB, restored on startup
 
@@ -300,15 +306,18 @@ _To be defined._
 
 ### Phase 8 — Tauri Desktop App ✓
 - [x] Tauri shell (`src-tauri/`) hosting the React UI — replaced the Electron shell
-- [x] All pages: Home (feed), Search, Watch, Channel, Subscriptions, Channels, History, Settings
+- [x] All pages: Search, Watch, Channel, Subscriptions, Channels, History, Settings
 - [x] FreeTube import as a Rust command (`src-tauri/src/freetube.rs`)
 - [x] youtube.js is the client's only backend; yt-dlp and Capacitor removed
+- [x] Adaptive DASH playback up to 2160p (dash.js + `ytstream://` segment proxy)
+- [x] Quality dropdown and fullscreen toggle overlaid on the player
+- [x] Home page removed; startup page is configurable in Settings
 - [x] `Origin`/`Referer` pinning so InnerTube stops answering 403 (`src/utils/tauri.ts`)
 
 ### Phase 9 — Production Hardening
 - [ ] Tauri: package installers (AppImage / deb / dmg / msi) via `npm run tauri:build`
 - [ ] Tauri mobile: `tauri android init` + Android SDK/NDK in `shell.nix`
-- [ ] Verify video playback end to end (needs GStreamer codecs on Linux)
+- [ ] Verify 1080p+ playback end to end in the app window
 - [ ] Server: systemd service unit file
 - [ ] Privacy mode (no history stored)
 - [ ] Default quality preference

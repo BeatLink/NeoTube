@@ -72,7 +72,6 @@ export default function Layout() {
     <div className="app-shell">
       <nav className="sidebar">
         <div className="sidebar-nav">
-          <NavLink to="/">Home</NavLink>
           <NavLink to="/subscriptions">Subscriptions</NavLink>
           <NavLink to="/channels">Channels</NavLink>
           <NavLink to="/history">History</NavLink>

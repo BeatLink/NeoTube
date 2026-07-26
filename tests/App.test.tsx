@@ -32,7 +32,6 @@ describe('App', () => {
 
   it('renders navigation links', () => {
     render(<App />)
-    expect(screen.getByText('Home')).toBeInTheDocument()
     expect(screen.getByText('Subscriptions')).toBeInTheDocument()
     expect(screen.getByText('Settings')).toBeInTheDocument()
   })

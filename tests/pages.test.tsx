@@ -3,7 +3,6 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ThemeProvider } from '../src/contexts/ThemeContext'
-import Home from '../src/pages/Home'
 import Subscriptions from '../src/pages/Channels'
 import Settings from '../src/pages/Settings'
 import Watch from '../src/pages/Watch'
@@ -92,6 +91,9 @@ vi.mock('../src/db/index', () => ({
   recordWatch: vi.fn().mockResolvedValue(undefined),
   getHistory: vi.fn().mockResolvedValue([]),
   getWatchedVideoIds: vi.fn().mockResolvedValue(new Set()),
+  getWatchedChannelIds: vi.fn().mockResolvedValue(new Set()),
+  getStaleChannelIds: vi.fn().mockResolvedValue(new Set()),
+  stripInlinedThumbnails: vi.fn().mockResolvedValue(0),
   removeFromHistory: vi.fn().mockResolvedValue(undefined),
   clearHistory: vi.fn().mockResolvedValue(undefined),
   updateHistoryThumbnail: vi.fn().mockResolvedValue(undefined),
@@ -109,20 +111,6 @@ const mockGetSubscriptions = vi.mocked(getSubscriptions)
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <ThemeProvider><MemoryRouter>{children}</MemoryRouter></ThemeProvider>
 )
-
-// ─── Home ─────────────────────────────────────────────────────────────────────
-
-describe('Home page', () => {
-  it('renders welcome heading', () => {
-    render(<Home />, { wrapper })
-    expect(screen.getByRole('heading', { name: /neotube/i })).toBeInTheDocument()
-  })
-
-  it('renders instructions text', () => {
-    render(<Home />, { wrapper })
-    expect(screen.getByText(/search for videos/i)).toBeInTheDocument()
-  })
-})
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
@@ -316,17 +304,24 @@ describe('Settings page', () => {
     expect(screen.getByText(/dark/i)).toBeInTheDocument()
   })
 
-  it('renders plugin options', () => {
+  it('renders startup page options', () => {
     render(<Settings />, { wrapper })
-    expect(screen.getByText('youtube.js (Local)')).toBeInTheDocument()
-    expect(screen.getByText('Stub Backend')).toBeInTheDocument()
+    expect(screen.getByText('Startup Page')).toBeInTheDocument()
+    expect(screen.getByText('Subscriptions')).toBeInTheDocument()
+    expect(screen.getByText('Channels')).toBeInTheDocument()
   })
 
-  it('calls setActive when a plugin is selected', async () => {
-    const { pluginManager } = await import('../src/plugins/manager')
+  it('persists the chosen startup page', async () => {
+    const { saveSettings } = await import('../src/db/index')
     render(<Settings />, { wrapper })
-    await userEvent.click(screen.getByText('Stub Backend'))
-    expect(pluginManager.setActive).toHaveBeenCalledWith('stub')
+    await userEvent.click(screen.getByText('History'))
+    expect(saveSettings).toHaveBeenCalledWith({ startupPage: 'history' })
+  })
+
+  // youtube.js is the only backend now, so no source picker should be offered.
+  it('does not render a video source selector', () => {
+    render(<Settings />, { wrapper })
+    expect(screen.queryByText('Video Source')).not.toBeInTheDocument()
   })
 })
 

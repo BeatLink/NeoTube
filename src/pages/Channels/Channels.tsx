@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSubscriptions, unsubscribe, getHistory, getSettings, saveSettings } from '../../db/index'
+import { getSubscriptions, unsubscribe, getWatchedChannelIds, getSettings, saveSettings } from '../../db/index'
 import PageLayout from '../../components/PageLayout'
 import ToggleButton from '../../components/ToggleButton'
 import Button from '../../components/Button'
@@ -15,16 +15,16 @@ export default function Channels() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([getSubscriptions(), getHistory(), getSettings()])
-      .then(([s, history, settings]) => {
+    Promise.all([getSubscriptions(), getWatchedChannelIds(), getSettings()])
+      .then(([s, watchedIds, settings]) => {
         setSubs(s)
-        setWatchedChannelIds(new Set(history.map(e => e.channelId).filter(Boolean)))
+        setWatchedChannelIds(watchedIds)
         setHideWatched(settings.channelsHideWatched ?? false)
       })
       .finally(() => setLoading(false))
 
     const refresh = () =>
-      getHistory().then(h => setWatchedChannelIds(new Set(h.map(e => e.channelId).filter(Boolean))))
+      getWatchedChannelIds().then(setWatchedChannelIds)
         .catch(() => {})
     window.addEventListener('history-changed', refresh)
     return () => window.removeEventListener('history-changed', refresh)

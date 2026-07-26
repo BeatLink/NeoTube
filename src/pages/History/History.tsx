@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { getHistory, removeFromHistory, clearHistory } from '../../db/index'
-import { cacheHistoryThumbnails } from '../../services/videoCache'
 import PageLayout from '../../components/PageLayout'
 import VideoCard from '../../components/VideoCard'
 import Button from '../../components/Button'
+import { thumbnailUrl } from '../../utils/avatar'
 import { timeAgo } from '../../utils/format'
 import type { WatchHistoryEntry } from '../../types'
 import './History.css'
@@ -24,7 +24,6 @@ export default function History() {
   })
 
   const [visibleCount, setVisibleCount] = useState(initState.count)
-  const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null)
   const visibleCountRef = useRef(visibleCount)
   const scrollRestoredRef = useRef(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -53,24 +52,6 @@ export default function History() {
       scrollRestoredRef.current = true
     }
   }, [loading, history.length, initState.scrollY])
-
-  useEffect(() => {
-    if (loading) return
-    const toBackfill = history.filter(e => !e.thumbnail?.startsWith('data:'))
-    if (!toBackfill.length) return
-    let cancelled = false
-    let done = 0
-    setBackfillProgress({ done: 0, total: toBackfill.length })
-    cacheHistoryThumbnails(toBackfill, (videoId, dataUri) => {
-      if (cancelled) return
-      done++
-      setHistory(prev => prev.map(e => e.videoId === videoId ? { ...e, thumbnail: dataUri } : e))
-      setBackfillProgress(p => p ? { ...p, done } : null)
-    }).finally(() => {
-      if (!cancelled) setBackfillProgress(null)
-    })
-    return () => { cancelled = true; setBackfillProgress(null) }
-  }, [loading])
 
   useEffect(() => {
     const el = sentinelRef.current
@@ -111,11 +92,6 @@ export default function History() {
           </div>
         ) : (
           <>
-            {backfillProgress && (
-              <p className="history-backfill-status">
-                Caching thumbnails… {backfillProgress.done}/{backfillProgress.total}
-              </p>
-            )}
             <Button onClick={() => setConfirmClear(true)}>Clear all</Button>
           </>
         )
@@ -131,7 +107,7 @@ export default function History() {
                 key={entry.videoId}
                 videoId={entry.videoId}
                 title={entry.title}
-                thumbnail={entry.thumbnail}
+                thumbnail={thumbnailUrl(entry.thumbnail, entry.videoId)}
                 duration={entry.duration}
                 channelId={entry.channelId}
                 channelName={entry.channelName}
