@@ -104,6 +104,30 @@ export async function search(query: string, limit: number) {
   }))
 }
 
+export async function searchChannels(query: string, limit: number) {
+  const yt = await getClient()
+  const results = await yt.search(query, { type: 'channel' })
+
+  return ((results.channels ?? []) as any[]).slice(0, limit).map((c: any) => {
+    const thumbs: Array<{ url: string; width?: number }> = c.author?.thumbnails ?? c.thumbnails ?? []
+    const best = thumbs.length
+      ? [...thumbs].sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0].url
+      : ''
+
+    return {
+      channel_id: (c.id ?? c.author?.id ?? '') as string,
+      name: (c.author?.name ?? c.title?.text ?? '') as string,
+      // Avatar URLs come back protocol-relative ("//yt3...").
+      avatar: best.startsWith('//') ? `https:${best}` : best,
+      // youtubei.js mislabels these: `subscriber_count` carries the @handle and
+      // `video_count` carries the subscriber text. Read them by content, not name.
+      handle: (c.subscriber_count?.text ?? '') as string,
+      subscriber_count_text: (c.video_count?.text ?? '') as string,
+      description: (c.description_snippet?.text ?? '') as string,
+    }
+  })
+}
+
 export async function getChannelInfo(channelId: string) {
   const yt = await getClient()
   const channel = await yt.getChannel(channelId) as any

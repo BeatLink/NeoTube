@@ -71,6 +71,18 @@ export interface FeaturedChannel {
   avatar: string
 }
 
+/** A channel returned by search. */
+export interface ChannelSearchResult {
+  channelId: string
+  name: string
+  avatar: string
+  /** e.g. "@kurzgesagt" */
+  handle?: string
+  /** Pre-formatted by YouTube, e.g. "25.4M subscribers". */
+  subscriberCountText?: string
+  description?: string
+}
+
 export interface ChannelPlaylist {
   playlistId: string
   title: string
@@ -93,6 +105,8 @@ export interface VideoPlugin {
 
   getVideoInfo(videoId: string): Promise<VideoInfo>
   search(query: string, limit?: number): Promise<SearchResult[]>
+  /** Searches for channels rather than videos. */
+  searchChannels?(query: string, limit?: number): Promise<ChannelSearchResult[]>
   getChannelInfo(channelId: string): Promise<ChannelInfo>
   /**
    * Fetches a channel's uploads. `limit` may be `Infinity` to request every

@@ -8,6 +8,8 @@ interface ChannelCardProps {
   channelId: string
   name: string
   avatar?: string
+  /** Optional line under the name, e.g. "25.4M subscribers". */
+  meta?: string
   /** Called after the subscription state changes, so lists can refresh. */
   onSubscriptionChange?: (subscribed: boolean) => void
 }
@@ -17,7 +19,7 @@ interface ChannelCardProps {
  * subscriptions grid and a channel's featured-channels tab.
  */
 export default function ChannelCard({
-  channelId, name, avatar, onSubscriptionChange,
+  channelId, name, avatar, meta, onSubscriptionChange,
 }: ChannelCardProps) {
   // null while unknown, so the button doesn't flash the wrong label.
   const [subscribed, setSubscribed] = useState<boolean | null>(null)
@@ -56,6 +58,7 @@ export default function ChannelCard({
             </div>
         }
         <p className="channel-card-name">{name}</p>
+        {meta && <p className="channel-card-meta">{meta}</p>}
       </Link>
       <Button
         size="sm"
