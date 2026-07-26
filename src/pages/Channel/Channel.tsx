@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { pluginManager } from '../../plugins/manager'
 import type { ChannelInfo, SearchResult, ChannelPlaylist } from '../../plugins/types'
@@ -14,6 +14,8 @@ import './Channel.css'
 
 type Tab = 'videos' | 'playlists'
 
+const PAGE_SIZE = 24
+
 export default function Channel() {
   const { channelId } = useParams<{ channelId: string }>()
   const [info, setInfo] = useState<ChannelInfo | null>(null)
@@ -27,6 +29,8 @@ export default function Channel() {
   const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
   const [watchedStyle, setWatchedStyle] = useState<'normal' | 'dim' | 'hide'>('normal')
   const [hideWatched, setHideWatched] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     Promise.all([getSettings(), getWatchedVideoIds()])
@@ -57,13 +61,16 @@ export default function Channel() {
     setPlaylists(null)
     setTab('videos')
     setError('')
+    setVisibleCount(PAGE_SIZE)
 
     let cancelled = false
     const plugin = pluginManager.getActive()
 
+    // Infinity → follow continuations until the channel is exhausted. YouTube
+    // returns 30 per page, which used to be the hard cap on what was shown.
     getOrFetchChannelVideos(channelId, fresh => {
       if (!cancelled) setVideos(fresh as SearchResult[])
-    }).then(cached => {
+    }, Infinity).then(cached => {
       if (cached && !cancelled) setVideos(cached as SearchResult[])
     }).catch(() => {})
 
@@ -98,6 +105,18 @@ export default function Channel() {
       .then(p => { setPlaylists(p); setLoadingPlaylists(false) })
       .catch(() => { setPlaylists([]); setLoadingPlaylists(false) })
   }, [tab, channelId, playlists])
+
+  // Reveal another chunk of the grid when the sentinel scrolls into view.
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0].isIntersecting) setVisibleCount(c => c + PAGE_SIZE) },
+      { rootMargin: '200px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [videos, tab, visibleCount])
 
   async function toggleSubscribe() {
     if (!channelId || !info) return
@@ -179,19 +198,27 @@ export default function Channel() {
                 const visibleVideos = shouldHide
                   ? videos.filter(v => !watchedIds.has(v.videoId))
                   : videos
+                // A channel can return hundreds of videos; render them in
+                // chunks so the grid stays responsive.
+                const shown = visibleVideos.slice(0, visibleCount)
                 return (
-                  <ul className="video-grid">
-                    {visibleVideos.map(v => (
-                      <VideoCard
-                        key={v.videoId}
-                        videoId={v.videoId}
-                        title={v.title}
-                        thumbnail={v.thumbnail}
-                        duration={v.duration}
-                        dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
-                      />
-                    ))}
-                  </ul>
+                  <>
+                    <ul className="video-grid">
+                      {shown.map(v => (
+                        <VideoCard
+                          key={v.videoId}
+                          videoId={v.videoId}
+                          title={v.title}
+                          thumbnail={v.thumbnail}
+                          duration={v.duration}
+                          dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
+                        />
+                      ))}
+                    </ul>
+                    {visibleCount < visibleVideos.length && (
+                      <div ref={sentinelRef} className="channel-sentinel" aria-hidden="true" />
+                    )}
+                  </>
                 )
               })()
       )}

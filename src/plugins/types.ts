@@ -66,7 +66,16 @@ export interface VideoPlugin {
   getVideoInfo(videoId: string): Promise<VideoInfo>
   search(query: string, limit?: number): Promise<SearchResult[]>
   getChannelInfo(channelId: string): Promise<ChannelInfo>
-  getChannelVideos?(channelId: string, limit?: number): Promise<SearchResult[]>
+  /**
+   * Fetches a channel's uploads. `limit` may be `Infinity` to request every
+   * video; `onPage` is called with the accumulated list after each page so
+   * callers can render progressively.
+   */
+  getChannelVideos?(
+    channelId: string,
+    limit?: number,
+    onPage?: (videos: SearchResult[]) => void,
+  ): Promise<SearchResult[]>
   getChannelPlaylists?(channelId: string, limit?: number): Promise<ChannelPlaylist[]>
   /**
    * Returns a DASH manifest for adaptive playback above 360p, or null when the

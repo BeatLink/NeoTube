@@ -101,17 +101,30 @@ export class YoutubeJsPlugin implements VideoPlugin {
     }
   }
 
-  async getChannelVideos(channelId: string, limit = 30): Promise<SearchResult[]> {
-    const items = await innertube.getChannelVideos(channelId, limit)
-    return items.map(v => ({
-      videoId: v.video_id,
-      title: v.title,
+  async getChannelVideos(
+    channelId: string,
+    limit = 30,
+    onPage?: (videos: SearchResult[]) => void,
+  ): Promise<SearchResult[]> {
+    const toResults = (items: Array<{ video_id: string; title: string; thumbnail: string; duration: number }>) =>
+      items.map(v => ({
+        videoId: v.video_id,
+        title: v.title,
+        channelId,
+        channelName: '',
+        thumbnail: v.thumbnail,
+        duration: v.duration,
+        viewCount: undefined,
+      }))
+
+    // limit may be Infinity — innertube pages through continuations until the
+    // channel is exhausted or its page cap is hit.
+    const items = await innertube.getChannelVideos(
       channelId,
-      channelName: '',
-      thumbnail: v.thumbnail,
-      duration: v.duration,
-      viewCount: undefined,
-    }))
+      limit,
+      onPage ? page => onPage(toResults(page)) : undefined,
+    )
+    return toResults(items)
   }
 
   async getChannelPlaylists(channelId: string, limit = 20): Promise<ChannelPlaylist[]> {

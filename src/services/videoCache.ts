@@ -3,15 +3,13 @@ import { pluginManager } from '../plugins/manager'
 import { thumbnailUrl } from '../utils/avatar'
 import type { CachedVideo } from '../types'
 
-async function fetchAndPersist(
+function toCachedVideos(
+  raw: Array<{ videoId: string; title: string; channelId?: string; channelName?: string
+    thumbnail: string; duration: number; viewCount?: number; publishedAt?: string }>,
   channelId: string,
-  limit?: number,
-  onFresh?: (videos: CachedVideo[]) => void,
-): Promise<CachedVideo[]> {
-  const plugin = pluginManager.getActive()
-  const fresh = await (plugin.getChannelVideos?.(channelId, limit) ?? Promise.resolve([]))
+): CachedVideo[] {
   // Thumbnails are stored as URLs, not downloaded blobs — see thumbnailUrl().
-  const videos: CachedVideo[] = fresh.map(v => ({
+  return raw.map(v => ({
     videoId: v.videoId,
     title: v.title,
     channelId: v.channelId ?? channelId,
@@ -21,6 +19,24 @@ async function fetchAndPersist(
     viewCount: v.viewCount,
     publishedAt: v.publishedAt,
   }))
+}
+
+async function fetchAndPersist(
+  channelId: string,
+  limit?: number,
+  onFresh?: (videos: CachedVideo[]) => void,
+): Promise<CachedVideo[]> {
+  const plugin = pluginManager.getActive()
+  const fresh = await (
+    plugin.getChannelVideos?.(
+      channelId,
+      limit,
+      // Fetching a whole channel takes several round trips, so surface each
+      // page as it lands rather than leaving the grid empty until the end.
+      onFresh ? page => onFresh(toCachedVideos(page, channelId)) : undefined,
+    ) ?? Promise.resolve([])
+  )
+  const videos = toCachedVideos(fresh, channelId)
   await setCachedChannelVideos(channelId, videos)
   onFresh?.(videos)
   return videos
@@ -42,7 +58,7 @@ export async function getOrFetchChannelVideos(
 }
 
 /**
- * Fetches fresh channel videos, persists to DB with blob thumbnails, and returns them.
+ * Fetches fresh channel videos, persists them to the DB, and returns them.
  * Awaitable — use in batched loops where concurrency must be controlled.
  * Calls onFresh when data is ready (same as the resolved value).
  */

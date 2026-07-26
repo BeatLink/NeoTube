@@ -122,12 +122,15 @@ export async function getChannelInfo(channelId: string) {
   }
 }
 
-export async function getChannelVideos(channelId: string, limit: number) {
-  const yt = await getClient()
-  const channel = await yt.getChannel(channelId) as any
-  let tab: any
-  try { tab = await channel.getVideos() } catch { return [] }
-  const raw: any[] = tab?.videos ?? tab?.items ?? tab?.contents ?? []
+interface RawChannelVideo {
+  video_id: string
+  title: string
+  thumbnail: string
+  duration: number
+  view_count_text: string
+}
+
+function parseChannelVideos(raw: any[]): RawChannelVideo[] {
   return raw
     .map((item: any) => {
       const v = item?.content ?? item
@@ -144,8 +147,50 @@ export async function getChannelVideos(channelId: string, limit: number) {
         view_count_text: (v?.view_count?.text ?? v?.short_view_count?.text ?? '') as string,
       }
     })
-    .filter(Boolean)
-    .slice(0, limit) as Array<{ video_id: string; title: string; thumbnail: string; duration: number; view_count_text: string }>
+    .filter(Boolean) as RawChannelVideo[]
+}
+
+/**
+ * Upper bound on continuation requests, so a channel with thousands of uploads
+ * can't spin indefinitely. YouTube returns 30 videos per page, so this allows
+ * roughly 3000 before stopping.
+ */
+const MAX_CHANNEL_PAGES = 100
+
+/**
+ * Fetches a channel's uploads, following continuations until `limit` is
+ * reached. YouTube returns only 30 per response, so anything more needs paging.
+ *
+ * Pass `Infinity` for every video the channel has.
+ */
+export async function getChannelVideos(
+  channelId: string,
+  limit: number,
+  onPage?: (videos: RawChannelVideo[], total: number) => void,
+) {
+  const yt = await getClient()
+  const channel = await yt.getChannel(channelId) as any
+  let feed: any
+  try { feed = await channel.getVideos() } catch { return [] }
+
+  const collected = parseChannelVideos(feed?.videos ?? feed?.items ?? feed?.contents ?? [])
+  onPage?.(collected.slice(0, limit), collected.length)
+
+  let pages = 1
+  while (collected.length < limit && feed?.has_continuation && pages < MAX_CHANNEL_PAGES) {
+    try {
+      feed = await feed.getContinuation()
+    } catch {
+      break // Continuations expire; return what we have rather than failing.
+    }
+    pages++
+    const page = parseChannelVideos(feed?.videos ?? feed?.items ?? feed?.contents ?? [])
+    if (!page.length) break
+    collected.push(...page)
+    onPage?.(collected.slice(0, limit), collected.length)
+  }
+
+  return collected.slice(0, limit)
 }
 
 export async function getChannelPlaylists(channelId: string, limit: number) {
