@@ -55,6 +55,10 @@ export async function getSabrStreamingData(videoId: string, reloadContext?: unkn
 
   const playerResponse = await yt.actions.execute('/player', {
     videoId,
+    // Without an explicit client the request defaults to WEB, which YouTube
+    // answers with UNPLAYABLE ("This content isn't available, try again
+    // later") unless it carries a valid PoToken. IOS is accepted as-is.
+    client: STREAM_CLIENT,
     contentCheckOk: true,
     racyCheckOk: true,
     playbackContext: {
@@ -90,17 +94,26 @@ export async function getSabrStreamingData(videoId: string, reloadContext?: unkn
   }
 }
 
-/** Client identification SABR includes with each request. */
+/**
+ * Client identification SABR includes with each request.
+ *
+ * This must describe the same client that fetched the streaming data
+ * ({@link STREAM_CLIENT}), not the session default — the server cross-checks
+ * them and rejects a mismatch.
+ */
 export async function getSabrClientInfo() {
   const yt = await getClient()
   const { Constants } = await import('youtubei.js')
   const client = yt.session.context.client
+  // CLIENT_NAME_IDS keys the iOS client as "iOS", not "IOS", so looking it up
+  // by STREAM_CLIENT directly yields undefined and sends NaN as the id.
+  const ids = Constants.CLIENT_NAME_IDS as Record<string, string>
+  const clientNameId = ids[STREAM_CLIENT] ?? ids.iOS ?? ids.WEB
+
   return {
     osName: client.osName,
     osVersion: client.osVersion,
-    clientName: parseInt(
-      (Constants.CLIENT_NAME_IDS as Record<string, string>)[client.clientName],
-    ),
+    clientName: parseInt(clientNameId),
     clientVersion: client.clientVersion,
   }
 }
