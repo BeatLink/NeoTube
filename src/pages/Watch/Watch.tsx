@@ -4,7 +4,7 @@ import { pluginManager } from '../../plugins/manager'
 import type { VideoInfo } from '../../plugins/types'
 import { isSubscribed, subscribe, unsubscribe, recordWatch } from '../../db/index'
 import { downloadAvatar, thumbnailUrl } from '../../utils/avatar'
-import VideoPlayer from '../../components/VideoPlayer'
+import SabrPlayer from '../../components/SabrPlayer'
 import Comments from '../../components/Comments'
 import PlaylistPicker from '../../components/PlaylistPicker'
 import { formatViews } from '../../utils/format'
@@ -35,22 +35,6 @@ export default function Watch() {
   const handlePlayerReady = useCallback((fn: () => number) => {
     getCurrentTime.current = fn
   }, [])
-  // Fetched alongside the video info so the page renders without waiting on it.
-  // null means adaptive playback is unavailable and the player uses `streams`.
-  const [manifest, setManifest] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!videoId) return
-    setManifest(null)
-    let cancelled = false
-
-    const plugin = pluginManager.getActive()
-    plugin.getDashManifest?.(videoId)
-      .then(mpd => { if (!cancelled) setManifest(mpd) })
-      .catch(() => { /* fall back to progressive streams */ })
-
-    return () => { cancelled = true }
-  }, [videoId])
 
   useEffect(() => {
     if (!videoId) return
@@ -107,9 +91,8 @@ export default function Watch() {
 
   return (
     <div className="watch-page">
-      <VideoPlayer
-        streams={info.streams}
-        manifest={manifest}
+      <SabrPlayer
+        videoId={info.videoId}
         title={info.title}
         onReady={handlePlayerReady}
       />

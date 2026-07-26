@@ -23,8 +23,10 @@
         "default-src": "'self'",
         "img-src": "'self' data: blob: https://i.ytimg.com https://yt3.ggpht.com https://yt3.googleusercontent.com",
         "media-src": "'self' blob: data: ytstream: http://ytstream.localhost https://*.googlevideo.com",
-        "connect-src": "'self' ipc: http://ipc.localhost ytstream: http://ytstream.localhost http://localhost:7700 https://www.youtube.com https://music.youtube.com https://*.googlevideo.com https://i.ytimg.com https://yt3.ggpht.com https://yt3.googleusercontent.com",
-        "style-src": "'self' 'unsafe-inline'"
+        "connect-src": "'self' ipc: http://ipc.localhost ytstream: http://ytstream.localhost http://localhost:7700 https://www.youtube.com https://music.youtube.com https://*.googlevideo.com https://i.ytimg.com https://yt3.ggpht.com https://yt3.googleusercontent.com https://jnn-pa.googleapis.com",
+        "style-src": "'self' 'unsafe-inline'",
+        "script-src": "'self' 'unsafe-eval' 'unsafe-inline'",
+        "worker-src": "'self' blob:"
       }
     }
   },

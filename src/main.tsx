@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import 'shaka-player/dist/controls.css'
 import './index.css'
 import App from './App.tsx'
 import { pluginManager } from './plugins/manager'

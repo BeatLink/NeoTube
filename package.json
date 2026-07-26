@@ -18,13 +18,15 @@
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-http": "^2.5.9",
     "@tauri-apps/plugin-opener": "^2.5.4",
-    "dashjs": "^5.2.0",
+    "bgutils-js": "^3.2.0",
     "events": "^3.3.0",
+    "googlevideo": "^4.1.1",
     "pouchdb": "^9.0.0",
     "pouchdb-browser": "^9.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
+    "shaka-player": "^4.16.42",
     "youtubei.js": "^17.2.0"
   },
   "devDependencies": {

@@ -170,10 +170,4 @@ export interface VideoPlugin {
   getPlaylist?(playlistId: string, limit?: number): Promise<PlaylistDetail>
   /** Channels this channel features on its home tab. */
   getFeaturedChannels?(channelId: string, limit?: number): Promise<FeaturedChannel[]>
-  /**
-   * Returns a DASH manifest for adaptive playback above 360p, or null when the
-   * environment can't support it. Optional — backends without adaptive streams
-   * simply omit it and the player uses `VideoInfo.streams`.
-   */
-  getDashManifest?(videoId: string): Promise<string | null>
 }

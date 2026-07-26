@@ -40,18 +40,69 @@ export async function setCookie(cookie: string): Promise<void> {
 const STREAM_CLIENT = 'IOS'
 
 /**
- * Builds a DASH manifest with segment URLs rewritten through the `ytstream://`
- * proxy (see `src-tauri/src/stream.rs`). Returns null in the browser, where the
- * proxy does not exist and adaptive playback is not possible.
+ * Streaming data for SABR playback.
+ *
+ * SABR fetches media through a single server-driven endpoint rather than byte
+ * ranges over a static file, so it needs the deciphered `server_abr_streaming_url`
+ * and the ustreamer config alongside the usual format list.
+ *
+ * `reloadContext` is supplied when the server asks for a fresh player response
+ * mid-playback (expired URLs, protection updates).
  */
-export async function getDashManifest(videoId: string): Promise<string | null> {
-  if (!isTauri()) return null
+export async function getSabrStreamingData(videoId: string, reloadContext?: unknown) {
   const yt = await getClient()
-  const info = await yt.getInfo(videoId, { client: STREAM_CLIENT })
-  return info.toDash({
-    url_transformer: (url: URL) =>
-      new URL(`ytstream://localhost/?url=${encodeURIComponent(url.toString())}`),
+  const { YT, Utils } = await import('youtubei.js')
+
+  const playerResponse = await yt.actions.execute('/player', {
+    videoId,
+    contentCheckOk: true,
+    racyCheckOk: true,
+    playbackContext: {
+      adPlaybackContext: { pyv: true },
+      contentPlaybackContext: {
+        signatureTimestamp: yt.session.player?.signature_timestamp,
+      },
+      ...(reloadContext ? { reloadPlaybackContext: reloadContext } : {}),
+    },
   })
+
+  const cpn = Utils.generateRandomString(16)
+  const info = new YT.VideoInfo([playerResponse], yt.actions, cpn)
+
+  if (info.playability_status?.status !== 'OK') {
+    throw new Error(info.playability_status?.reason || 'This video cannot be played.')
+  }
+
+  const streaming = info.streaming_data
+  if (!streaming) throw new Error('No streaming data returned for this video.')
+
+  // The SABR endpoint is ciphered like any other stream URL.
+  const streamingUrl = await yt.session.player!.decipher(streaming.server_abr_streaming_url)
+
+  return {
+    info,
+    cpn,
+    streamingUrl,
+    ustreamerConfig:
+      info.player_config?.media_common_config?.media_ustreamer_request_config
+        ?.video_playback_ustreamer_config,
+    formats: streaming.adaptive_formats,
+  }
+}
+
+/** Client identification SABR includes with each request. */
+export async function getSabrClientInfo() {
+  const yt = await getClient()
+  const { Constants } = await import('youtubei.js')
+  const client = yt.session.context.client
+  return {
+    osName: client.osName,
+    osVersion: client.osVersion,
+    clientName: parseInt(
+      (Constants.CLIENT_NAME_IDS as Record<string, string>)[client.clientName],
+    ),
+    clientVersion: client.clientVersion,
+  }
 }
 
 export async function getInfo(videoId: string) {
