@@ -97,8 +97,14 @@ export class YoutubeJsPlugin implements VideoPlugin {
       channelId: raw.channel_id ?? channelId,
       name: raw.name,
       avatar: raw.avatar,
+      banner: raw.banner,
       description: raw.description,
       subscriberCount,
+      joinedText: raw.joined_text,
+      totalViewsText: raw.total_views_text,
+      videoCountText: raw.video_count_text,
+      country: raw.country,
+      tags: raw.tags,
     }
   }
 

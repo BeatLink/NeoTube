@@ -116,12 +116,35 @@ export async function getChannelInfo(channelId: string) {
     ? avatars.sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0].url
     : ''
   const subText: string = header?.subscribers?.subscriber_count?.text ?? ''
+
+  // The banner lives under the newer PageHeader shape; pick the widest source.
+  const banners: Array<{ url: string; width?: number }> =
+    header?.content?.banner?.image ?? header?.banner?.image ?? []
+  const banner = banners.length > 0
+    ? [...banners].sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0].url
+    : ''
+
+  // getAbout() carries the details panel (joined date, total views, location,
+  // video count). It's a second request, so a failure degrades rather than
+  // breaking the page.
+  let about: any = {}
+  try {
+    about = (await channel.getAbout())?.metadata ?? {}
+  } catch { /* details are optional */ }
+
   return {
     channel_id: channelId,
     name,
     avatar,
-    description: (meta?.description ?? '') as string,
-    subscriber_count_text: subText,
+    banner,
+    description: (about?.description ?? meta?.description ?? '') as string,
+    subscriber_count_text: (about?.subscriber_count ?? subText) as string,
+    // All pre-formatted by YouTube, e.g. "119,549,338 views", "35 videos".
+    joined_text: (about?.joined_date?.text ?? '') as string,
+    total_views_text: (about?.view_count ?? '') as string,
+    video_count_text: (about?.video_count ?? '') as string,
+    country: (about?.country ?? '') as string,
+    tags: (meta?.tags ?? []) as string[],
   }
 }
 

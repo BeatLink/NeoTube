@@ -6,6 +6,7 @@ import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWat
 import { downloadAvatar } from '../../utils/avatar'
 import { getOrFetchChannelVideos } from '../../services/videoCache'
 import { getChannelInfoCached } from '../../services/metadata'
+import { parseRelativeAge, parseViewCount } from '../../utils/format'
 import PageLayout from '../../components/PageLayout'
 import VideoCard from '../../components/VideoCard'
 import VideoThumbnail from '../../components/VideoThumbnail'
@@ -16,6 +17,76 @@ import './Channel.css'
 type Tab = 'videos' | 'playlists'
 
 const PAGE_SIZE = 24
+
+type SortMode = 'newest' | 'oldest' | 'popular'
+
+const SORT_OPTIONS: ReadonlyArray<{ value: SortMode; label: string }> = [
+  { value: 'newest', label: 'Newest' },
+  { value: 'oldest', label: 'Oldest' },
+  { value: 'popular', label: 'Most popular' },
+]
+
+/**
+ * Sorts by the values parsed out of YouTube's display text.
+ *
+ * `parseRelativeAge` returns age in ms, so smaller is newer. Videos YouTube
+ * gives no date or view count for sort last in every mode rather than jumping
+ * to the front.
+ */
+function sortVideos(videos: SearchResult[], mode: SortMode): SearchResult[] {
+  const sorted = [...videos]
+  switch (mode) {
+    case 'newest':
+      return sorted.sort((a, b) =>
+        parseRelativeAge(a.publishedText) - parseRelativeAge(b.publishedText))
+    case 'oldest':
+      return sorted.sort((a, b) => {
+        const ageA = parseRelativeAge(a.publishedText)
+        const ageB = parseRelativeAge(b.publishedText)
+        // Unknown dates (Infinity) stay at the end instead of leading.
+        if (ageA === Infinity) return 1
+        if (ageB === Infinity) return -1
+        return ageB - ageA
+      })
+    case 'popular':
+      return sorted.sort((a, b) =>
+        parseViewCount(b.viewCountText) - parseViewCount(a.viewCountText))
+  }
+}
+
+/** Channel details panel — joined date, totals, location, tags. */
+function ChannelDetails({ info }: { info: ChannelInfo }) {
+  const rows: Array<[string, string]> = []
+  if (info.joinedText) rows.push(['Joined', info.joinedText.replace(/^Joined\s+/i, '')])
+  if (info.totalViewsText) rows.push(['Views', info.totalViewsText.replace(/\s*views$/i, '')])
+  if (info.videoCountText) rows.push(['Videos', info.videoCountText.replace(/\s*videos?$/i, '')])
+  if (info.country) rows.push(['Location', info.country])
+
+  const tags = info.tags ?? []
+  if (rows.length === 0 && tags.length === 0) return null
+
+  return (
+    <section className="channel-details">
+      <h3 className="channel-details-title">Details</h3>
+      <dl className="channel-details-list">
+        {rows.map(([label, value]) => (
+          <div key={label} className="channel-details-row">
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {tags.length > 0 && (
+        <>
+          <h3 className="channel-details-title">Tags</h3>
+          <ul className="channel-tags">
+            {tags.map(tag => <li key={tag} className="channel-tag">{tag}</li>)}
+          </ul>
+        </>
+      )}
+    </section>
+  )
+}
 
 export default function Channel() {
   const { channelId } = useParams<{ channelId: string }>()
@@ -31,6 +102,7 @@ export default function Channel() {
   const [watchedStyle, setWatchedStyle] = useState<'normal' | 'dim' | 'hide'>('normal')
   const [hideWatched, setHideWatched] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const [sortMode, setSortMode] = useState<SortMode>('newest')
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -153,11 +225,17 @@ export default function Channel() {
           {subscribed ? 'Subscribed' : 'Subscribe'}
         </Button>
       }
-      extra={info.description ? (
-        <div className="channel-description">
-          <p>{info.description}</p>
-        </div>
-      ) : undefined}
+      banner={info.banner}
+      extra={
+        <>
+          {info.description && (
+            <div className="channel-description">
+              <p>{info.description}</p>
+            </div>
+          )}
+          <ChannelDetails info={info} />
+        </>
+      }
       tabs={
         <div className="channel-tabs">
           <button
@@ -173,17 +251,29 @@ export default function Channel() {
             Playlists
           </button>
           {tab === 'videos' && (
-            <ToggleButton
-              active={hideWatched}
-              onClick={() => {
-                const next = !hideWatched
-                setHideWatched(next)
-                saveSettings({ channelPageHideWatched: next }).catch(() => {})
-              }}
-              style={{ marginLeft: 'auto' }}
-            >
-              Unwatched only
-            </ToggleButton>
+            <>
+              <select
+                className="channel-sort"
+                value={sortMode}
+                onChange={e => setSortMode(e.target.value as SortMode)}
+                aria-label="Sort videos"
+                style={{ marginLeft: 'auto' }}
+              >
+                {SORT_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <ToggleButton
+                active={hideWatched}
+                onClick={() => {
+                  const next = !hideWatched
+                  setHideWatched(next)
+                  saveSettings({ channelPageHideWatched: next }).catch(() => {})
+                }}
+              >
+                Unwatched only
+              </ToggleButton>
+            </>
           )}
         </div>
       }
@@ -194,9 +284,10 @@ export default function Channel() {
           : videos.length === 0
             ? <p className="channel-tab-status">No videos found.</p>
             : (() => {
-                const visibleVideos = shouldHide
+                const filtered = shouldHide
                   ? videos.filter(v => !watchedIds.has(v.videoId))
                   : videos
+                const visibleVideos = sortVideos(filtered, sortMode)
                 // A channel can return hundreds of videos; render them in
                 // chunks so the grid stays responsive.
                 const shown = visibleVideos.slice(0, visibleCount)

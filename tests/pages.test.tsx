@@ -74,6 +74,16 @@ vi.mock('../src/plugins/manager', () => {
   }
 })
 
+// The Channel page reads channel info through the metadata cache; route it
+// straight to the mocked plugin so these tests stay about the page.
+vi.mock('../src/services/metadata', async () => {
+  const { pluginManager } = await import('../src/plugins/manager')
+  return {
+    getChannelInfoCached: (id: string) => pluginManager.getActive().getChannelInfo(id),
+    getVideoInfoCached: (id: string) => pluginManager.getActive().getVideoInfo(id),
+  }
+})
+
 vi.mock('../src/services/videoCache', () => ({
   getOrFetchChannelVideos: vi.fn().mockResolvedValue(null),
   refreshChannelVideos: vi.fn().mockResolvedValue([]),

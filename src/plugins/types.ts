@@ -47,8 +47,19 @@ export interface ChannelInfo {
   channelId: string
   name: string
   avatar: string
+  /** Wide header image, if the channel has one. */
+  banner?: string
   description?: string
   subscriberCount?: number
+  /**
+   * Details-panel values, pre-formatted by YouTube — e.g. "Joined Feb 3, 2011",
+   * "119,549,338 views", "35 videos".
+   */
+  joinedText?: string
+  totalViewsText?: string
+  videoCountText?: string
+  country?: string
+  tags?: string[]
 }
 
 export interface ChannelPlaylist {

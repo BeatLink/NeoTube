@@ -4,6 +4,8 @@ interface PageLayoutProps {
   title?: string
   subtitle?: string
   icon?: React.ReactNode
+  /** Wide header image rendered above the title. */
+  banner?: string
   actions?: React.ReactNode
   extra?: React.ReactNode
   tabs?: React.ReactNode
@@ -15,6 +17,7 @@ export default function PageLayout({
   title,
   subtitle,
   icon,
+  banner,
   actions,
   extra,
   tabs,
@@ -25,6 +28,11 @@ export default function PageLayout({
 
   return (
     <div className={`page${className ? ` ${className}` : ''}`}>
+      {banner && (
+        <div className="page-banner">
+          <img src={banner} alt="" loading="lazy" />
+        </div>
+      )}
       {hasHeader && (
         <div className="page-header">
           {(icon || title || subtitle) && (
