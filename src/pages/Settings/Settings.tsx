@@ -4,6 +4,7 @@ import { pluginManager } from '../../plugins/manager'
 import { saveSettings, getSettings, subscribe, recordWatch } from '../../db/index'
 import { setCookie as ytjsSetCookie } from '../../plugins/youtubejs/innertube'
 import { downloadAvatar } from '../../utils/avatar'
+import { isTauri, freetubeScan, freetubeReadData } from '../../utils/tauri'
 import PageLayout from '../../components/PageLayout'
 import MenuButton from '../../components/MenuButton'
 import Button from '../../components/Button'
@@ -17,15 +18,6 @@ type FtHistEntry = {
   thumbnail: string; duration: number; watchedAt: string
 }
 type FtData = { subscriptions: FtSub[]; history: FtHistEntry[] }
-
-declare global {
-  interface Window {
-    freetube?: {
-      scan(): Promise<string[]>
-      readData(dir: string): Promise<FtData>
-    }
-  }
-}
 
 type ImportPhase =
   | { status: 'idle' }
@@ -90,13 +82,13 @@ export default function Settings() {
   }
 
   async function handleScan() {
-    if (!window.freetube) return
+    if (!isTauri()) return
     setImportState({ status: 'scanning' })
     try {
-      const dirs = await window.freetube.scan()
+      const dirs = await freetubeScan()
       if (!dirs.length) { setImportState({ status: 'not-found' }); return }
       const dir = dirs[0]
-      const data = await window.freetube.readData(dir)
+      const data = await freetubeReadData(dir)
       setImportState({ status: 'preview', dir, data })
     } catch (e) {
       setImportState({ status: 'error', message: (e as Error).message })
@@ -154,7 +146,7 @@ export default function Settings() {
     }
   }
 
-  const isElectron = typeof window.freetube !== 'undefined'
+  const isDesktop = isTauri()
   const activePluginInfo = plugins.find(p => p.id === activePlugin)
 
   return (
@@ -234,7 +226,7 @@ export default function Settings() {
         <section className="settings-section">
           <h3 className="settings-section-title">Import from FreeTube</h3>
 
-          {!isElectron ? (
+          {!isDesktop ? (
             <p className="ft-unavailable">Available in the desktop app only.</p>
           ) : (
             <div className="ft-import">

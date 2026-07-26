@@ -66,8 +66,9 @@ vi.mock('../src/plugins/manager', () => {
     pluginManager: {
       getActive: vi.fn(() => _plugin),
       list: vi.fn(() => [
-        { id: 'youtubejs', name: 'youtube.js (Local)', description: 'Works in Electron' },
-        { id: 'ytdlp', name: 'yt-dlp', description: 'Desktop only' },
+        { id: 'youtubejs', name: 'youtube.js (Local)', description: 'Runs in the webview' },
+        // Second entry exists only so the picker has something to switch to.
+        { id: 'stub', name: 'Stub Backend', description: 'Test double' },
       ]),
       setActive: vi.fn(),
     },
@@ -318,14 +319,14 @@ describe('Settings page', () => {
   it('renders plugin options', () => {
     render(<Settings />, { wrapper })
     expect(screen.getByText('youtube.js (Local)')).toBeInTheDocument()
-    expect(screen.getByText('yt-dlp')).toBeInTheDocument()
+    expect(screen.getByText('Stub Backend')).toBeInTheDocument()
   })
 
   it('calls setActive when a plugin is selected', async () => {
     const { pluginManager } = await import('../src/plugins/manager')
     render(<Settings />, { wrapper })
-    await userEvent.click(screen.getByText('yt-dlp'))
-    expect(pluginManager.setActive).toHaveBeenCalledWith('ytdlp')
+    await userEvent.click(screen.getByText('Stub Backend'))
+    expect(pluginManager.setActive).toHaveBeenCalledWith('stub')
   })
 })
 

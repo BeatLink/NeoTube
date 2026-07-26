@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(nix-shell shell.nix --run \"npm run test:run 2>&1\")",
+      "WebFetch(domain:ytjs.dev)"
+    ]
+  }
+}

@@ -3,12 +3,10 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { pluginManager } from './plugins/manager'
-import { YtdlpPlugin } from './plugins/ytdlp/index'
 import { YoutubeJsPlugin } from './plugins/youtubejs/index'
 import { getSettings } from './db/index'
 
 pluginManager.register(new YoutubeJsPlugin())
-pluginManager.register(new YtdlpPlugin())
 
 // Restore saved plugin + per-plugin config, falling back to auto-select
 getSettings()

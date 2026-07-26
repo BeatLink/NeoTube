@@ -50,8 +50,8 @@ describe('PluginManager', () => {
   })
 
   it('retrieves a plugin by id', () => {
-    manager.register(makeStub('ytdlp', true))
-    expect(manager.get('ytdlp')?.id).toBe('ytdlp')
+    manager.register(makeStub('other', true))
+    expect(manager.get('other')?.id).toBe('other')
   })
 
   it('setActive throws for unknown plugin', () => {

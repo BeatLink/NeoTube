@@ -8,53 +8,65 @@ NeoTube is a free, open source, privacy-respecting YouTube client. It allows use
 
 ## Architecture
 
-NeoTube uses a **client–server model**. A standalone Node.js server (Fastify + PouchDB + youtubei.js + yt-dlp) runs on the user's machine or LAN and exposes a REST API. The client is a React/Vite UI (`src/`) that calls the API; it runs in the browser and is packaged as a desktop app by an Electron shell (`electron/`).
+NeoTube ships as a **self-contained Tauri desktop app**. The React/Vite UI (`src/`) runs in the platform webview, talks to YouTube directly through youtubei.js, and stores its data in PouchDB. A Rust shell (`src-tauri/`) provides the window, the HTTP stack, and the handful of native capabilities the webview lacks.
+
+A standalone Node.js server (`server/`) also exists and exposes the same capabilities over REST. It is **optional** — used by the browser build and for LAN/self-hosted setups. The desktop app does not require it.
 
 ### System diagram
 
 ```mermaid
 graph TB
-    %% ── Server ─────────────────────────────────────────────────────────────
-    subgraph SRV["Server — Node.js daemon  (server/)  · port 7700"]
+    %% ── Desktop app ────────────────────────────────────────────────────────
+    subgraph APP["Desktop app — Tauri"]
+        direction TB
+        subgraph WV["Webview — React / Vite (src/)"]
+            UI[React UI]
+            IT["Innertube\n(youtubei.js)"]
+            PDB[(PouchDB\nIndexedDB)]
+            UI --> IT & PDB
+        end
+        subgraph RS["Rust shell (src-tauri/)"]
+            HTTP[tauri-plugin-http]
+            FT[FreeTube import]
+        end
+        IT -- "fetch shim" --> HTTP
+    end
+
+    %% ── Optional server ────────────────────────────────────────────────────
+    subgraph SRV["Server — optional (server/) · port 7700"]
         direction TB
         FW[Fastify HTTP server]
-        DB[(PouchDB / LevelDB\n~/.neotube/db)]
-        IT["Innertube\n(youtubei.js)"]
+        SDB[(PouchDB / LevelDB\n~/.neotube/db)]
+        SIT["Innertube\n(youtubei.js)"]
         YD[yt-dlp binary]
-
-        FW --> DB & IT & YD
+        FW --> SDB & SIT & YD
     end
 
-    %% ── Client ────────────────────────────────────────────────────────────
-    subgraph CLI["Client — React / Vite  (src/)"]
-        direction TB
-        UI_B[Browser]
-        UI_E[Electron desktop app\n(electron/ wraps src/)]
-    end
-
-    %% ── External ──────────────────────────────────────────────────────────
+    BR[Browser build]
     YT[(YouTube)]
 
-    %% ── Edges ─────────────────────────────────────────────────────────────
-    UI_B & UI_E -- "fetch /api/*" --> FW
-    IT --> YT
+    HTTP --> YT
+    SIT --> YT
     YD --> YT
+    BR -- "fetch /api/*" --> FW
 ```
 
 ### Layer responsibilities
 
 | Layer | What runs there |
 |-------|----------------|
-| **Server** | Fastify REST API, PouchDB storage, Innertube (youtubei.js), yt-dlp spawn |
-| **React UI** (`src/`) | The client; runs in the browser and inside Electron; calls the REST API |
-| **Electron** (`electron/`) | Desktop shell hosting the React UI; exposes desktop-only bridges (e.g. FreeTube import) via preload |
+| **Webview** (`src/`) | React UI, youtubei.js, PouchDB — the whole app |
+| **Rust shell** (`src-tauri/`) | Window, HTTP stack (CORS bypass), FreeTube import |
+| **Server** (`server/`) | Optional REST API for the browser build and self-hosting; Innertube + yt-dlp + LevelDB |
 
 ### Key design points
 
-- **youtube.js lives on the server.** It's a JS library that needs a real Node.js environment (no CORS, no WebView sandboxing). The client receives structured JSON from the API.
-- **yt-dlp is server-side only.** The binary is spawned from the Fastify process; the client calls `/api/video/:id?backend=ytdlp`.
-- **PouchDB is the server's source of truth.** Subscriptions, history, settings, and channel caches are stored in LevelDB via PouchDB. The `/api/sync` endpoint triggers one-shot replication to a CouchDB-compatible remote (optional).
-- **Electron adds desktop-only capabilities.** `electron/preload.ts` exposes bridges (e.g. FreeTube data import) on `window.*`; pages feature-detect them and degrade gracefully in the browser.
+- **youtube.js runs in the webview.** The desktop app has no server dependency for YouTube data.
+- **CORS is bypassed via Rust, not header rewriting.** `tauri-plugin-http` performs requests outside the webview, so its CORS rules never apply. The single seam is `Innertube.create({ fetch })` in `src/plugins/youtubejs/innertube.ts`.
+- **`Origin` must be pinned, not stripped.** InnerTube answers `403` to any cross-origin `Origin` value (an empty one included), so `src/utils/tauri.ts` sets `Origin`/`Referer` to `https://www.youtube.com`. Deleting them does not work: `@tauri-apps/plugin-http` builds its own `Request` internally and merges the webview's headers back in for any key the caller left unset. See `tests/tauriFetch.test.ts`.
+- **yt-dlp is server-side only.** The desktop client uses youtubei.js exclusively; the binary is still spawned by the Fastify process for `/api/video/:id?backend=ytdlp`.
+- **Native capabilities live in Rust.** The FreeTube importer needs filesystem access the webview lacks, so it is a `#[tauri::command]` in `src-tauri/src/freetube.rs`. Pages feature-detect via `isTauri()` and degrade gracefully in the browser.
+- **One fetch shim serves desktop and mobile.** Tauri v2 targets Android/iOS with the same Rust HTTP stack, so no per-platform branch is needed.
 
 ### REST API contract
 
@@ -94,8 +106,9 @@ GET    /api/health                          → { ok: true, version }
 
 | Platform | Stack |
 |----------|-------|
-| Desktop | Electron + React (`src/`) → Linux / macOS / Windows |
-| Web | React (`src/`) in the browser → any modern browser |
+| Desktop | Tauri + React (`src/`) → Linux / macOS / Windows |
+| Web | React (`src/`) in the browser → any modern browser (requires the server) |
+| Mobile | Tauri v2 (Android / iOS) — scaffolding present, not yet initialised |
 
 ---
 
@@ -119,22 +132,26 @@ NeoTube/
 │           ├── proxy.ts       # /api/proxy?url= — image proxy
 │           └── sync.ts        # /api/sync — PouchDB replication
 │
-├── electron/                  # Electron desktop shell wrapping the React UI
-│   ├── main.ts                # Main process — window, server bridge, FreeTube import
-│   ├── preload.ts             # Exposes desktop-only bridges on window.*
-│   └── tsconfig.json
+├── src-tauri/                 # Tauri desktop shell (Rust)
+│   ├── src/
+│   │   ├── main.rs            # Binary entry point
+│   │   ├── lib.rs             # Builder — registers plugins and commands
+│   │   └── freetube.rs        # FreeTube import (filesystem access)
+│   ├── capabilities/          # Permission scopes (allow-listed HTTP hosts)
+│   ├── tauri.conf.json        # Window, CSP, bundle config
+│   └── Cargo.toml
 │
-├── src/                       # React UI — the app client (browser + Electron)
+├── src/                       # React UI — the app itself (webview + browser)
 │   ├── App.tsx                # React Router routes + Layout shell
 │   ├── components/            # Shared UI (Button, VideoCard, PageLayout, …)
 │   ├── pages/                 # Home, Search, Watch, Channel, Subscriptions, Channels, History, Settings
-│   ├── plugins/               # Plugin system (youtubejs + ytdlp)
+│   ├── plugins/               # Plugin system (youtubejs)
 │   ├── db/                    # PouchDB access layer (browser)
-│   ├── contexts/ hooks/ services/ utils/ types/
+│   ├── utils/tauri.ts         # Tauri detection, fetch shim, native bridges
+│   ├── contexts/ hooks/ services/ types/
 │   └── …
 │
-├── capacitor.config.ts        # Capacitor config (mobile packaging)
-├── shell.nix                  # Nix dev shell: nodejs_22, electron, yt-dlp
+├── shell.nix                  # Nix dev shell: nodejs_22, rust, tauri-cli, webkitgtk
 ├── flake.nix                  # Nix flake
 └── package.nix                # Nix package definition
 ```
@@ -148,9 +165,9 @@ NeoTube/
 | Server framework | Fastify 5 |
 | Server DB | PouchDB 9 (LevelDB via `pouchdb`) |
 | YouTube data | youtubei.js 17 |
-| Video download | yt-dlp |
+| Video download | yt-dlp (server only) |
 | Client UI | React 19 |
-| Desktop shell | Electron |
+| Desktop shell | Tauri 2 (Rust + WebKitGTK / WKWebView / WebView2) |
 | React bundler | Vite 8 |
 | React routing | React Router 7 |
 | React testing | Vitest + Testing Library |
@@ -162,26 +179,29 @@ NeoTube/
 ## Running Locally
 
 ```bash
-# Enter Nix dev shell (provides node, electron, yt-dlp)
+# Enter Nix dev shell (provides node, rust, tauri-cli, webkitgtk, yt-dlp)
 nix-shell
 
-# Start the REST API server
+# Run the Tauri desktop app — this is the whole app, no server needed
+npm install && npm run tauri:dev
+
+# Optional: the REST API server (needed only for the browser build)
 cd server && npm install && npm run dev
 # → http://localhost:7700
 
-# Run the Electron desktop app (React UI + Electron shell)
-npm install && npm run dev:electron
-
-# Or run the React UI in the browser
+# Optional: the React UI in the browser (points at the server above)
 npm run dev
 ```
+
+> The dev server is pinned to port 5173 (`strictPort`) because `src-tauri/tauri.conf.json`
+> points at that exact URL. A clash fails loudly rather than leaving Tauri on a blank page.
 
 ---
 
 ## Features
 
 ### Playback
-- Video playback via pluggable backend (yt-dlp or youtube.js)
+- Video playback via youtube.js (the desktop client's only backend)
 - Quality selection from available streams
 - Watch page: title, channel link, subscribe button, view count, collapsible description
 - YouTube cookie auth (Settings → YouTube Account): paste session cookie to unlock 720p+ adaptive streams via youtube.js
@@ -196,7 +216,7 @@ npm run dev
 
 ### Subscriptions
 - Subscribe / unsubscribe from Watch page and Channel page
-- Subscriptions stored in PouchDB (server-side); sorted alphabetically
+- Subscriptions stored in PouchDB; sorted alphabetically
 - **Subscriptions feed** (`/subscriptions`): recent videos from all subscribed channels
 - **Channels grid** (`/channels`): card grid of subscribed channels
 
@@ -206,13 +226,13 @@ npm run dev
 - Previously-watched video style (Normal / Dim / Hide) in Settings
 
 ### Data Import
-- **FreeTube import** (Electron, Desktop only): imports subscriptions and watch history
+- **FreeTube import** (desktop only): imports subscriptions and watch history
 
 ### Settings
 - Light / dark theme
-- Active backend selector (yt-dlp, youtube.js)
+- Active backend selector (youtube.js)
 - Previously watched video style (Normal / Dim / Hide)
-- YouTube session cookie: stored in PouchDB, restored on server startup
+- YouTube session cookie: stored in PouchDB, restored on startup
 
 ---
 
@@ -231,18 +251,17 @@ _To be defined._
 - [x] PouchDB data layer + types
 - [x] Settings stored in PouchDB (theme, quality, privacy mode)
 - [x] Light / dark theme toggle
-- [x] Electron skeleton (main + preload)
-- [x] Capacitor config
+- [x] Desktop shell skeleton
 
-### Phase 2 — Plugin System & yt-dlp ✓
+### Phase 2 — Plugin System ✓
 - [x] `VideoPlugin` interface
 - [x] `PluginManager` with registration, lookup, and auto-select
-- [x] yt-dlp plugin — Electron IPC bridge to local binary
+- [x] yt-dlp plugin (later removed from the client; still available server-side)
 - [x] VideoPlayer component with quality selector
 - [x] Watch page wired to active plugin
 
 ### Phase 3 — youtube.js Plugin ✓
-- [x] youtube.js plugin — runs in renderer; CORS via `session.webRequest` on Electron, `CapacitorHttp` on mobile
+- [x] youtube.js plugin — runs in the webview; CORS bypassed via Tauri's Rust HTTP stack
 - [x] YouTube cookie auth for 720p+ adaptive streams
 - [x] Plugin selector in Settings page
 
@@ -279,15 +298,17 @@ _To be defined._
 - [x] PouchDB → CouchDB sync endpoint (`/api/sync`)
 - [x] Health check endpoint
 
-### Phase 8 — Electron Desktop App ✓
-- [x] Electron shell (`electron/main.ts` + `electron/preload.ts`) wrapping the React UI
+### Phase 8 — Tauri Desktop App ✓
+- [x] Tauri shell (`src-tauri/`) hosting the React UI — replaced the Electron shell
 - [x] All pages: Home (feed), Search, Watch, Channel, Subscriptions, Channels, History, Settings
-- [x] FreeTube import bridge (subscriptions + history) exposed via preload
-- [x] Flutter native client removed — React + Electron is the single client
+- [x] FreeTube import as a Rust command (`src-tauri/src/freetube.rs`)
+- [x] youtube.js is the client's only backend; yt-dlp and Capacitor removed
+- [x] `Origin`/`Referer` pinning so InnerTube stops answering 403 (`src/utils/tauri.ts`)
 
 ### Phase 9 — Production Hardening
-- [ ] Electron: package installers via electron-builder (AppImage / dmg / nsis)
-- [ ] Electron: bundle the server + node runtime alongside the app for distribution
+- [ ] Tauri: package installers (AppImage / deb / dmg / msi) via `npm run tauri:build`
+- [ ] Tauri mobile: `tauri android init` + Android SDK/NDK in `shell.nix`
+- [ ] Verify video playback end to end (needs GStreamer codecs on Linux)
 - [ ] Server: systemd service unit file
 - [ ] Privacy mode (no history stored)
 - [ ] Default quality preference

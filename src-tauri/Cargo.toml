@@ -1,0 +1,29 @@
+[package]
+name = "neotube"
+version = "0.1.0"
+description = "A privacy-respecting YouTube client"
+authors = ["NeoTube"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+# The _lib suffix avoids a name collision with the binary on Windows.
+name = "neotube_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# `unsafe-headers` lets Innertube send Cookie/Referer. The fetch spec marks them
+# forbidden, so the plugin strips them by default and YouTube answers 403.
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "5"
+
+[features]
+# Consumed by tauri-build; enables devtools in debug builds.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

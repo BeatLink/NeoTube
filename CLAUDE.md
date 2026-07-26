@@ -4,10 +4,10 @@
 
 ```
 NeoTube/
-├── server/          Node.js REST API server (Fastify + PouchDB + youtubei.js + yt-dlp)
-├── electron/        Electron main + preload (desktop shell wrapping src/)
-├── src/             React UI — the app frontend, runs in the browser and in Electron
-└── shell.nix        Nix dev shell (nodejs_22, electron, yt-dlp, git)
+├── src/             React UI — the app itself (runs in the Tauri webview and the browser)
+├── src-tauri/       Tauri desktop shell (Rust): window, HTTP stack, native commands
+├── server/          Optional Node.js REST API (Fastify + PouchDB + youtubei.js + yt-dlp)
+└── shell.nix        Nix dev shell (nodejs_22, rust, tauri-cli, webkitgtk, yt-dlp, git)
 ```
 
 Full architecture and roadmap are in [DEVELOP.md](DEVELOP.md).
@@ -17,7 +17,7 @@ Full architecture and roadmap are in [DEVELOP.md](DEVELOP.md).
 All development happens inside the Nix shell. Enter it once at the start of a session:
 
 ```bash
-nix-shell   # provides node, npm, electron, yt-dlp, git
+nix-shell   # provides node, npm, cargo/rustc, tauri-cli, webkitgtk, yt-dlp, git
             # also sets NEOTUBE_SERVER_PATH=$(pwd)/server
 ```
 
@@ -28,15 +28,18 @@ nix-shell   # provides node, npm, electron, yt-dlp, git
 ## Running things
 
 ```bash
-# API server (port 7700)
+# Tauri desktop app — this is the whole app; no server required
+npm run tauri:dev
+
+# Optional API server (port 7700) — only the browser build needs it
 cd server && npm run dev
 
-# Electron desktop app (React UI in an Electron shell)
-npm run dev:electron
-
-# React web UI in the browser (optional — points at the same API server)
+# React web UI in the browser (points at the API server above)
 npm run dev
 ```
+
+Vite is pinned to port 5173 (`strictPort`) because `src-tauri/tauri.conf.json` points at
+that URL. If it's taken, `tauri:dev` fails loudly instead of showing a blank window.
 
 ## Server (`server/`)
 
@@ -50,14 +53,29 @@ npm run dev
 
 Adding a route: create `server/src/routes/<name>.ts` exporting a default Fastify plugin, then register it in `server/src/index.ts`.
 
-## React UI (`src/`) + Electron
+## React UI (`src/`) + Tauri (`src-tauri/`)
 
-- `src/` is the app frontend; it runs both in the browser and inside Electron (`electron/main.ts` + `electron/preload.ts`)
+- `src/` is the app; it runs in the Tauri webview and in a plain browser
 - **Routing**: React Router 7 — routes in `src/App.tsx`; `Layout` wraps the tab pages, `/watch/:videoId` and `/channel/:channelId` render inside it
 - **Pages**: `src/pages/<Name>/` (Home, Search, Watch, Channel, Subscriptions, Channels, History, Settings)
-- **Data layer**: PouchDB (browser) via `src/db/`; the plugin system (`src/plugins/`, youtubejs + ytdlp) fetches YouTube data
-- **Electron-only features** (e.g. FreeTube import) are exposed on `window.*` by `electron/preload.ts` and guarded with a runtime check in the page
-- Run in the browser with `npm run dev` (Vite on port 5173); run the desktop app with `npm run dev:electron`
+- **Data layer**: PouchDB (browser) via `src/db/`; the plugin system (`src/plugins/`, youtubejs only) fetches YouTube data
+- **Desktop-only features** (e.g. FreeTube import) are Rust commands in `src-tauri/src/`, wrapped in `src/utils/tauri.ts` and guarded with `isTauri()` in the page
+
+### The fetch shim — read before touching networking
+
+youtubei.js runs *in the webview*, so YouTube requests would normally hit CORS. They are
+routed through Rust's HTTP stack instead via `Innertube.create({ fetch })`. Two
+non-obvious rules, both enforced by `tests/tauriFetch.test.ts`:
+
+- **Pin `Origin`/`Referer` to `https://www.youtube.com`.** InnerTube returns `403` for any
+  cross-origin value, including an empty one.
+- **Set them, never delete them.** `@tauri-apps/plugin-http` builds its own `Request` and
+  merges the webview's headers back in for any key the caller left unset, so a deleted
+  `Origin` silently reappears as `http://localhost:5173`.
+
+Adding a native command: write it in `src-tauri/src/`, register it in the
+`invoke_handler!` list in `src-tauri/src/lib.rs`, then wrap it in `src/utils/tauri.ts`.
+New outbound hosts must be allow-listed in `src-tauri/capabilities/default.json`.
 
 Adding a page: create `src/pages/<Name>/<Name>.tsx` (+ `.css`, `index.ts`), then add a `<Route>` in `src/App.tsx`.
 
@@ -69,8 +87,9 @@ Adding a page: create `src/pages/<Name>/<Name>.tsx` (+ `.css`, `index.ts`), then
 | Tests (React) | `npm run test:run` |
 | Server dev | `cd server && npm run dev` |
 | Web dev | `npm run dev` |
-| Electron dev | `npm run dev:electron` |
-| Electron build | `npm run build:electron` |
+| Desktop dev | `npm run tauri:dev` |
+| Desktop build | `npm run tauri:build` |
+| Rust tests | `cd src-tauri && cargo test` |
 
 ## Conventions
 
@@ -98,6 +117,9 @@ Run the relevant suite before committing:
 # React (Vitest)
 npm run test:run
 
+# Rust (Tauri shell)
+cd src-tauri && cargo test
+
 # Server smoke test (no test suite yet)
 cd server && npm run dev &
 curl -s http://localhost:7700/api/health
@@ -113,7 +135,7 @@ All tests must pass before committing. If a test suite doesn't exist for the cha
 4. **Commit message format**:
    - First line: `<Type>: <short imperative summary>` (≤ 72 chars)
    - Types: `Add`, `Fix`, `Refactor`, `Update`, `Remove`, `Docs`
-   - Body (optional): explain *why*, not *what*; reference the area (`server/`, `electron/`, `src/`)
+   - Body (optional): explain *why*, not *what*; reference the area (`server/`, `src-tauri/`, `src/`)
    - Always add the co-author trailer: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
 5. **One logical change per commit** — don't bundle unrelated fixes.
 

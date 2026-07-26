@@ -1,36 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Capacitor, CapacitorHttp } from '@capacitor/core'
-
-// ─── Capacitor fetch wrapper ──────────────────────────────────────────────────
-// Routes requests through native HTTP to bypass WebView CORS restrictions.
-// Only used when Capacitor.isNativePlatform() is true.
-
-async function capacitorFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const url = input instanceof Request ? input.url : String(input)
-  const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
-
-  const reqHeaders: Record<string, string> = {}
-  const src = init?.headers ?? (input instanceof Request ? input.headers : undefined)
-  if (src instanceof Headers) {
-    src.forEach((v, k) => { reqHeaders[k] = v })
-  } else if (src && typeof src === 'object') {
-    Object.assign(reqHeaders, src as Record<string, string>)
-  }
-
-  let data: unknown
-  const rawBody = init?.body ?? undefined
-  if (rawBody) {
-    if (typeof rawBody === 'string') {
-      try { data = JSON.parse(rawBody) } catch { data = rawBody }
-    } else {
-      data = rawBody
-    }
-  }
-
-  const res = await CapacitorHttp.request({ url, method, headers: reqHeaders, data })
-  const bodyStr = typeof res.data === 'string' ? res.data : JSON.stringify(res.data)
-  return new Response(bodyStr, { status: res.status, headers: res.headers })
-}
+import { isTauri, tauriFetch } from '../../utils/tauri'
 
 // ─── Innertube singleton ──────────────────────────────────────────────────────
 
@@ -40,8 +9,11 @@ let _cookie = ''
 async function buildClient(): Promise<any> {
   const { Innertube } = await import('youtubei.js')
   const opts: Record<string, any> = _cookie ? { cookie: _cookie } : {}
-  if (Capacitor.isNativePlatform()) {
-    opts.fetch = capacitorFetch
+  // Under Tauri the webview enforces CORS, which YouTube's API does not satisfy.
+  // Routing Innertube's requests through Rust's HTTP stack sidesteps it entirely.
+  // The same shim serves desktop and mobile.
+  if (isTauri()) {
+    opts.fetch = tauriFetch
   }
   return Innertube.create(opts)
 }

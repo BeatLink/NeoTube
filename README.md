@@ -8,9 +8,9 @@ NeoTube lets you browse and watch YouTube content without being tracked by Googl
 
 | Platform | How |
 |----------|-----|
+| Desktop | Tauri (Linux / macOS / Windows) |
 | Web | Vite dev server / static build |
-| Desktop | Electron |
-| Mobile | Capacitor (Android / iOS) |
+| Mobile | Tauri v2 (Android / iOS) — planned |
 
 ## Development
 
@@ -36,13 +36,14 @@ npm install
 npm run dev
 ```
 
-### Run the desktop app (Electron)
+### Run the desktop app (Tauri)
 
 ```bash
-npm run dev:electron
+npm run tauri:dev
 ```
 
-Requires the Nix dev shell (provides `electron` and `yt-dlp` binaries).
+Requires the Nix dev shell, which provides the Rust toolchain, `tauri-cli`, and the
+WebKitGTK system libraries.
 
 ### Run tests
 
@@ -55,7 +56,7 @@ npm run test:run   # single pass
 
 ```bash
 npm run build              # web (outputs to dist/)
-npm run build:electron     # desktop (outputs to release/)
+npm run tauri:build        # desktop installers (outputs to src-tauri/target/release/)
 ```
 
 ## Project structure
