@@ -5,7 +5,8 @@ import type { CachedVideo } from '../types'
 
 function toCachedVideos(
   raw: Array<{ videoId: string; title: string; channelId?: string; channelName?: string
-    thumbnail: string; duration: number; viewCount?: number; publishedAt?: string }>,
+    thumbnail: string; duration: number; viewCount?: number; publishedAt?: string
+    viewCountText?: string; publishedText?: string }>,
   channelId: string,
 ): CachedVideo[] {
   // Thumbnails are stored as URLs, not downloaded blobs — see thumbnailUrl().
@@ -18,6 +19,8 @@ function toCachedVideos(
     duration: v.duration,
     viewCount: v.viewCount,
     publishedAt: v.publishedAt,
+    viewCountText: v.viewCountText,
+    publishedText: v.publishedText,
   }))
 }
 

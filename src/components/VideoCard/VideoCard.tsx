@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import VideoThumbnail from '../VideoThumbnail'
 import VideoMenu, { type VideoMenuAction } from '../VideoMenu'
 import { recordWatch } from '../../db/index'
+import { formatViews, timeAgo } from '../../utils/format'
 import { openInBrowser } from '../../utils/tauri'
 import './VideoCard.css'
 
@@ -13,7 +14,13 @@ interface VideoCardProps {
   channelId?: string
   channelName?: string
   dimmed?: boolean
+  /** Overrides the default views/upload-date line. */
   meta?: React.ReactNode
+  viewCount?: number
+  publishedAt?: string
+  /** Pre-formatted by YouTube, e.g. "1.4M views" / "2 weeks ago". */
+  viewCountText?: string
+  publishedText?: string
   onRemove?: () => void
   removeLabel?: string
   /** Called after the video is marked watched, so lists can refresh. */
@@ -27,8 +34,16 @@ function watchUrl(videoId: string): string {
 export default function VideoCard({
   videoId, title, thumbnail, duration,
   channelId, channelName,
-  dimmed, meta, onRemove, removeLabel, onMarkWatched,
+  dimmed, meta, viewCount, publishedAt, viewCountText, publishedText,
+  onRemove, removeLabel, onMarkWatched,
 }: VideoCardProps) {
+  // YouTube's listing APIs return these already humanized ("1.4M views",
+  // "2 weeks ago"); fall back to formatting raw values when they don't.
+  const views = viewCountText
+    ?? (viewCount !== undefined ? formatViews(viewCount) : undefined)
+  const uploaded = publishedText
+    ?? (publishedAt ? timeAgo(publishedAt) : undefined)
+  const stats = [views, uploaded].filter(Boolean)
   const actions: VideoMenuAction[] = [
     {
       label: 'Mark as watched',
@@ -62,7 +77,11 @@ export default function VideoCard({
         {channelId && channelName && (
           <Link to={`/channel/${channelId}`} className="video-card-channel">{channelName}</Link>
         )}
-        {meta != null && <p className="video-card-meta">{meta}</p>}
+        {meta != null
+          ? <p className="video-card-meta">{meta}</p>
+          : stats.length > 0 && (
+              <p className="video-card-meta">{stats.join(' · ')}</p>
+            )}
       </div>
       {/* Shifted left when a remove button shares the corner. */}
       <VideoMenu

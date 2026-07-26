@@ -168,6 +168,8 @@ export default function Subscriptions() {
                   title={v.title}
                   thumbnail={v.thumbnail}
                   duration={v.duration}
+                  viewCountText={v.viewCountText}
+                  publishedText={v.publishedText}
                   channelId={v.channel.channelId}
                   channelName={v.channel.channelName}
                   dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
@@ -214,6 +216,8 @@ export default function Subscriptions() {
                     title={v.title}
                     thumbnail={v.thumbnail}
                     duration={v.duration}
+                    viewCountText={v.viewCountText}
+                    publishedText={v.publishedText}
                     dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
                   />
                 ))}

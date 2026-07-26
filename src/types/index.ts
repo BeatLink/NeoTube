@@ -57,6 +57,9 @@ export interface CachedVideo {
   duration: number
   viewCount?: number
   publishedAt?: string
+  /** Display text from YouTube, e.g. "1.4M views" / "2 weeks ago". */
+  viewCountText?: string
+  publishedText?: string
 }
 
 export interface ChannelVideoCache {
@@ -66,6 +69,30 @@ export interface ChannelVideoCache {
   channelId: string
   videos: CachedVideo[]
   fetchedAt: string
+}
+
+// ─── Metadata cache ───────────────────────────────────────────────────────────
+
+/** What a cached metadata document describes. */
+export type MetadataKind = 'channel' | 'playlist' | 'video'
+
+/**
+ * A cached blob of metadata, keyed `metadata-<kind>-<id>`.
+ *
+ * `fetchedAt` drives staleness for both read-through lookups and the background
+ * refresher; `failedAt`/`failures` let the poller back off from entries that
+ * keep erroring instead of retrying them forever.
+ */
+export interface MetadataCache<T = unknown> {
+  _id: string
+  _rev?: string
+  type: 'metadata'
+  kind: MetadataKind
+  refId: string
+  data: T
+  fetchedAt: string
+  failedAt?: string
+  failures?: number
 }
 
 /** Pages that can be chosen as the launch destination. */

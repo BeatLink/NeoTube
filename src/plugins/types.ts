@@ -33,6 +33,14 @@ export interface SearchResult {
   duration: number
   viewCount?: number
   publishedAt?: string
+  /**
+   * Display strings as YouTube returns them, e.g. "1.4M views" and "2 weeks
+   * ago". Preferred over `viewCount`/`publishedAt` for rendering: the listing
+   * APIs only ever supply this pre-formatted text, and parsing it back into a
+   * number or timestamp would lose precision without gaining anything.
+   */
+  viewCountText?: string
+  publishedText?: string
 }
 
 export interface ChannelInfo {

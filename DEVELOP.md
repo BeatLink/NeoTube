@@ -324,6 +324,8 @@ _To be defined._
 - [x] Quality dropdown and fullscreen toggle overlaid on the player
 - [x] Home page removed; startup page is configurable in Settings
 - [x] Channel pages load every video via continuations, not just the first 30
+- [x] Video card overflow menu: mark as watched, open in YouTube, copy link
+- [x] Channel about text always visible (no longer collapsed)
 - [x] Feed caching with a TTL; thumbnails stored as URLs (DB ~75 MB → <1 MB)
 - [x] `Origin`/`Referer` pinning so InnerTube stops answering 403 (`src/utils/tauri.ts`)
 

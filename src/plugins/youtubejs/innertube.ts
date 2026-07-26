@@ -98,6 +98,9 @@ export async function search(query: string, limit: number) {
     channel_id: v.author?.id as string | undefined,
     thumbnail: v.thumbnails?.[v.thumbnails.length - 1]?.url as string | undefined,
     length_text: v.length_text?.text as string | undefined,
+    // short_view_count is already abbreviated ("128K views"); view_count is not.
+    view_count_text: (v.short_view_count?.text ?? v.view_count?.text) as string | undefined,
+    published_text: v.published?.text as string | undefined,
   }))
 }
 
@@ -127,7 +130,23 @@ interface RawChannelVideo {
   title: string
   thumbnail: string
   duration: number
+  /** Pre-formatted by YouTube, e.g. "1.4M views". */
   view_count_text: string
+  /** Pre-formatted by YouTube, e.g. "2 weeks ago". */
+  published_text: string
+}
+
+/**
+ * Pulls the metadata line out of a `LockupView`, YouTube's newer channel-grid
+ * shape. It arrives as pre-rendered text parts — typically ["1.4M views",
+ * "2 weeks ago"] — rather than as a count and a timestamp.
+ */
+function lockupMetadataParts(v: any): string[] {
+  const rows: any[] = v?.metadata?.metadata?.metadata_rows ?? []
+  return rows
+    .flatMap((row: any) => row?.metadata_parts ?? [])
+    .map((part: any) => part?.text?.text)
+    .filter((text: unknown): text is string => typeof text === 'string' && text.length > 0)
 }
 
 function parseChannelVideos(raw: any[]): RawChannelVideo[] {
@@ -139,12 +158,21 @@ function parseChannelVideos(raw: any[]): RawChannelVideo[] {
       const title: string = v?.title?.text ?? v?.metadata?.title?.text ?? v?.title ?? ''
       const thumbs: Array<{ url: string }> =
         v?.thumbnails ?? v?.content_image?.image ?? v?.thumbnail ?? []
+
+      // Older shapes expose these directly; LockupView hides them in text rows.
+      const parts = lockupMetadataParts(v)
+      const viewText = v?.view_count?.text ?? v?.short_view_count?.text
+        ?? parts.find(p => /view/i.test(p)) ?? ''
+      const publishedText = v?.published?.text
+        ?? parts.find(p => /ago$/i.test(p)) ?? ''
+
       return {
         video_id: id,
         title,
         thumbnail: thumbs.length > 0 ? thumbs[thumbs.length - 1].url : '',
         duration: (v?.duration?.seconds ?? v?.duration?.total_time ?? 0) as number,
-        view_count_text: (v?.view_count?.text ?? v?.short_view_count?.text ?? '') as string,
+        view_count_text: viewText as string,
+        published_text: publishedText as string,
       }
     })
     .filter(Boolean) as RawChannelVideo[]

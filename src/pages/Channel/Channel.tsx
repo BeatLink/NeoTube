@@ -5,6 +5,7 @@ import type { ChannelInfo, SearchResult, ChannelPlaylist } from '../../plugins/t
 import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWatchedVideoIds } from '../../db/index'
 import { downloadAvatar } from '../../utils/avatar'
 import { getOrFetchChannelVideos } from '../../services/videoCache'
+import { getChannelInfoCached } from '../../services/metadata'
 import PageLayout from '../../components/PageLayout'
 import VideoCard from '../../components/VideoCard'
 import VideoThumbnail from '../../components/VideoThumbnail'
@@ -64,7 +65,6 @@ export default function Channel() {
     setVisibleCount(PAGE_SIZE)
 
     let cancelled = false
-    const plugin = pluginManager.getActive()
 
     // Infinity → follow continuations until the channel is exhausted. YouTube
     // returns 30 per page, which used to be the hard cap on what was shown.
@@ -74,7 +74,7 @@ export default function Channel() {
       if (cached && !cancelled) setVideos(cached as SearchResult[])
     }).catch(() => {})
 
-    plugin.getChannelInfo(channelId)
+    getChannelInfoCached(channelId)
       .then(channelInfo => {
         if (cancelled) return
         setInfo(channelInfo)
@@ -210,6 +210,8 @@ export default function Channel() {
                           title={v.title}
                           thumbnail={v.thumbnail}
                           duration={v.duration}
+                          viewCountText={v.viewCountText}
+                          publishedText={v.publishedText}
                           dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
                         />
                       ))}

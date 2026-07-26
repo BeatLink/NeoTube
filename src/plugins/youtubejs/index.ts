@@ -75,7 +75,8 @@ export class YoutubeJsPlugin implements VideoPlugin {
       channelName: v.channel_name ?? '',
       thumbnail: v.thumbnail ?? '',
       duration: parseDuration(v.length_text),
-      viewCount: undefined,
+      viewCountText: v.view_count_text,
+      publishedText: v.published_text,
     }))
   }
 
@@ -106,7 +107,10 @@ export class YoutubeJsPlugin implements VideoPlugin {
     limit = 30,
     onPage?: (videos: SearchResult[]) => void,
   ): Promise<SearchResult[]> {
-    const toResults = (items: Array<{ video_id: string; title: string; thumbnail: string; duration: number }>) =>
+    const toResults = (
+      items: Array<{ video_id: string; title: string; thumbnail: string; duration: number
+        view_count_text: string; published_text: string }>,
+    ) =>
       items.map(v => ({
         videoId: v.video_id,
         title: v.title,
@@ -114,7 +118,8 @@ export class YoutubeJsPlugin implements VideoPlugin {
         channelName: '',
         thumbnail: v.thumbnail,
         duration: v.duration,
-        viewCount: undefined,
+        viewCountText: v.view_count_text,
+        publishedText: v.published_text,
       }))
 
     // limit may be Infinity — innertube pages through continuations until the

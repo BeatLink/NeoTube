@@ -3,8 +3,8 @@ import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
 import { useTheme } from '../../contexts/ThemeContext'
 import { parseVideoId, parseChannelUrl } from '../../utils/youtube'
 import { getSubscriptions, subscribe } from '../../db/index'
-import { pluginManager } from '../../plugins/manager'
 import { downloadAvatar } from '../../utils/avatar'
+import { getChannelInfoCached } from '../../services/metadata'
 import Button from '../Button'
 import type { Subscription } from '../../types'
 
@@ -32,15 +32,13 @@ export default function Layout() {
     ;(async () => {
       const list = await getSubscriptions()
       if (!list.length) return
-      let plugin
-      try { plugin = pluginManager.getActive() } catch { return }
       for (let i = 0; i < list.length; i++) {
         if (cancelled) break
         if (i > 0) await new Promise<void>(r => setTimeout(r, 800))
         if (cancelled) break
         const sub = list[i]
         try {
-          const info = await plugin.getChannelInfo(sub.channelId)
+          const info = await getChannelInfoCached(sub.channelId)
           if (info.avatar && !cancelled) {
             const blob = await downloadAvatar(info.avatar)
             if (blob && !cancelled) await subscribe(sub.channelId, sub.channelName, blob)

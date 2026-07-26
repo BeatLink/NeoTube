@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { pluginManager } from '../../plugins/manager'
 import { getSettings, getWatchedVideoIds } from '../../db/index'
 import VideoThumbnail from '../../components/VideoThumbnail'
+import { formatViews } from '../../utils/format'
 import type { SearchResult } from '../../plugins/types'
 import './Search.css'
 
@@ -94,9 +95,16 @@ export default function Search() {
                 <Link to={`/channel/${r.channelId}`} className="result-channel">
                   {r.channelName}
                 </Link>
-                {r.viewCount !== undefined && (
-                  <p className="result-views">{r.viewCount.toLocaleString()} views</p>
-                )}
+                {(() => {
+                  // YouTube supplies these already humanized; fall back to
+                  // formatting a raw count when it doesn't.
+                  const views = r.viewCountText
+                    ?? (r.viewCount !== undefined ? formatViews(r.viewCount) : undefined)
+                  const stats = [views, r.publishedText].filter(Boolean)
+                  return stats.length > 0 && (
+                    <p className="result-views">{stats.join(' · ')}</p>
+                  )
+                })()}
               </div>
             </li>
           )

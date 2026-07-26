@@ -1,15 +1,7 @@
-// pouchdb-browser uses IndexedDB — the correct adapter for all browser/Electron targets.
-// Tests import pouchdb directly with the memory adapter (see src/test/db.test.ts).
-import PouchDB from 'pouchdb-browser'
+import { db } from './client'
 import type { UserSettings, Subscription, WatchHistoryEntry, CachedVideo, ChannelVideoCache } from '../types'
 
-// Lazy singleton — deferred until first use so tests that mock this module
-// never trigger the IndexedDB constructor in jsdom.
-let _db: PouchDB.Database | null = null
-function db(): PouchDB.Database {
-  if (!_db) _db = new PouchDB('neotube')
-  return _db
-}
+export { db }
 
 // ─── Migrations ───────────────────────────────────────────────────────────────
 
