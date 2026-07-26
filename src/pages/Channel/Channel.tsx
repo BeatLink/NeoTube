@@ -154,10 +154,9 @@ export default function Channel() {
         </Button>
       }
       extra={info.description ? (
-        <details className="channel-description">
-          <summary>About</summary>
+        <div className="channel-description">
           <p>{info.description}</p>
-        </details>
+        </div>
       ) : undefined}
       tabs={
         <div className="channel-tabs">

@@ -47,15 +47,7 @@
   padding: 12px 16px;
 }
 
-.channel-description summary {
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
 .channel-description p {
-  margin-top: 10px;
   font-size: 0.875rem;
   white-space: pre-wrap;
 }

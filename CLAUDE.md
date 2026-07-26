@@ -77,6 +77,20 @@ Adding a native command: write it in `src-tauri/src/`, register it in the
 `invoke_handler!` list in `src-tauri/src/lib.rs`, then wrap it in `src/utils/tauri.ts`.
 New outbound hosts must be allow-listed in `src-tauri/capabilities/default.json`.
 
+### Performance — the rules that keep pages fast
+
+Three constraints, each of which was a real regression:
+
+- **Never refetch a fresh cache.** Channel caches carry `fetchedAt`; use
+  `getStaleChannelIds()` before refreshing. Refreshing everything on mount made the
+  subscriptions feed take ~8s to settle.
+- **Never store images as base64.** Thumbnails are URLs rendered by
+  `<img loading="lazy">`. Inlining them cost hundreds of requests per refresh and
+  produced a ~75 MB PouchDB that slowed every read. Channel *avatars* are the one
+  exception — few, small, and shown on every page.
+- **Paginate long lists.** Channel and History grids render in chunks behind an
+  `IntersectionObserver`.
+
 ### Video playback — why it isn't just `<video src>`
 
 YouTube stops muxing video+audio at **360p**; every higher quality is an adaptive

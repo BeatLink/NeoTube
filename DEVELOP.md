@@ -67,6 +67,17 @@ graph TB
 - **yt-dlp is server-side only.** The desktop client uses youtubei.js exclusively; the binary is still spawned by the Fastify process for `/api/video/:id?backend=ytdlp`.
 - **Adaptive streams need a proxy.** `googlevideo.com` serves cross-origin segment requests but returns no `Access-Control-Allow-Origin`, so the webview blocks the response before dash.js can read it. `src-tauri/src/stream.rs` registers a `ytstream://` scheme that proxies segments and adds the missing header; `toDash({ url_transformer })` rewrites the manifest to use it.
 - **The IOS Innertube client is used for playback.** It is the only one returning stream URLs that need no signature deciphering — WEB/ANDROID/TV all require running YouTube's player script in a JS evaluator we don't ship.
+- **Cached data is only refetched when stale.** Each channel cache carries a
+  `fetchedAt`; `getStaleChannelIds()` filters to expired entries (30 min TTL) so
+  revisiting the feed is a pure DB read. Refreshing all 32 channels on every visit
+  was the single largest page-load cost.
+- **Thumbnails are URLs, never inlined.** They used to be downloaded and stored as
+  base64, costing 256 requests per feed refresh and leaving a ~75 MB database that
+  slowed every query. `<img loading="lazy">` fetches only what is on screen.
+  `stripInlinedThumbnails()` migrates existing data on startup.
+- **Channel uploads are paginated.** YouTube returns 30 videos per response;
+  `getChannelVideos()` follows continuations (capped at 100 pages) and reports each
+  page so the grid fills progressively.
 - **Native capabilities live in Rust.** The FreeTube importer needs filesystem access the webview lacks, so it is a `#[tauri::command]` in `src-tauri/src/freetube.rs`. Pages feature-detect via `isTauri()` and degrade gracefully in the browser.
 - **One fetch shim serves desktop and mobile.** Tauri v2 targets Android/iOS with the same Rust HTTP stack, so no per-platform branch is needed.
 
@@ -312,6 +323,8 @@ _To be defined._
 - [x] Adaptive DASH playback up to 2160p (dash.js + `ytstream://` segment proxy)
 - [x] Quality dropdown and fullscreen toggle overlaid on the player
 - [x] Home page removed; startup page is configurable in Settings
+- [x] Channel pages load every video via continuations, not just the first 30
+- [x] Feed caching with a TTL; thumbnails stored as URLs (DB ~75 MB → <1 MB)
 - [x] `Origin`/`Referer` pinning so InnerTube stops answering 403 (`src/utils/tauri.ts`)
 
 ### Phase 9 — Production Hardening
