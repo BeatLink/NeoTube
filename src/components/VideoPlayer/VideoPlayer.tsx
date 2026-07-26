@@ -98,7 +98,17 @@ export default function VideoPlayer({ streams, manifest, title, onReady }: Props
   // shows its stage instead of an unexplained spinner.
   const [loadPhase, setLoadPhase] = useState<string | null>('Loading…')
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const playback = useVideoPlayback(videoRef)
+  // dash.js must perform the seek itself when it is driving playback; see
+  // PlaybackOptions.seekOverride.
+  const seekViaDash = useCallback((time: number) => {
+    const player = playerRef.current
+    if (player) player.seek(time)
+    else if (videoRef.current) videoRef.current.currentTime = time
+  }, [])
+
+  // Always installed: the override falls back to the element when no dash.js
+  // player exists, so it is correct on the progressive path too.
+  const playback = useVideoPlayback(videoRef, { seekOverride: seekViaDash })
   const [progressive, setProgressive] = useState<StreamUrl | undefined>(
     () => bestProgressive(streams),
   )

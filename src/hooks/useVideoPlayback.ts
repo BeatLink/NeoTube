@@ -45,7 +45,21 @@ const VOLUME_KEY = 'player-volume'
  * is still the source of state, so external changes (dash.js seeking, the media
  * keys, autoplay policies) stay in sync instead of drifting from the UI.
  */
-export function useVideoPlayback(videoRef: React.RefObject<HTMLVideoElement | null>) {
+export interface PlaybackOptions {
+  /**
+   * Seeks through the adaptive player instead of the element.
+   *
+   * With DASH the player owns the buffer: setting `video.currentTime` directly
+   * moves the playhead without telling it to fetch segments for the new
+   * position, so it buffers forever and requests nonsensical byte offsets.
+   */
+  seekOverride?: (time: number) => void
+}
+
+export function useVideoPlayback(
+  videoRef: React.RefObject<HTMLVideoElement | null>,
+  options: PlaybackOptions = {},
+) {
   const [state, setState] = useState<PlaybackState>(INITIAL)
   // Kept in a ref so the event listeners never need re-binding.
   const stateRef = useRef(state)
@@ -104,11 +118,19 @@ export function useVideoPlayback(videoRef: React.RefObject<HTMLVideoElement | nu
     else video.pause()
   }, [videoRef])
 
+  // Held in a ref so a changing override never re-creates the seek callback,
+  // which the control bar and key handlers depend on being stable.
+  const seekOverride = useRef(options.seekOverride)
+  seekOverride.current = options.seekOverride
+
   const seek = useCallback((time: number) => {
     const video = videoRef.current
     if (!video) return
     const max = Number.isFinite(video.duration) ? video.duration : time
-    video.currentTime = Math.max(0, Math.min(time, max))
+    const target = Math.max(0, Math.min(time, max))
+
+    if (seekOverride.current) seekOverride.current(target)
+    else video.currentTime = target
   }, [videoRef])
 
   const skip = useCallback((delta: number) => {
