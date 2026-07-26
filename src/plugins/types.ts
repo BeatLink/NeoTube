@@ -60,6 +60,8 @@ export interface ChannelInfo {
   videoCountText?: string
   country?: string
   tags?: string[]
+  /** Whether the channel publishes a playlists tab. */
+  hasPlaylists?: boolean
 }
 
 /** A channel featured by another channel. */

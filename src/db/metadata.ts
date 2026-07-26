@@ -31,8 +31,9 @@ export const MAX_FAILURES = 5
  *
  * 2: ChannelInfo gained banner, joined/views/video-count text, country, tags,
  *    and the full description from getAbout().
+ * 3: ChannelInfo gained hasPlaylists, which drives tab visibility.
  */
-export const METADATA_VERSION = 2
+export const METADATA_VERSION = 3
 
 export function isFresh(
   doc: Pick<MetadataCache, 'fetchedAt' | 'version'>,

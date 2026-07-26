@@ -106,6 +106,7 @@ export class YoutubeJsPlugin implements VideoPlugin {
       videoCountText: raw.video_count_text,
       country: raw.country,
       tags: raw.tags,
+      hasPlaylists: raw.has_playlists,
     }
   }
 

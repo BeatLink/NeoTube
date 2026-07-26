@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { pluginManager } from '../../plugins/manager'
 import type { ChannelInfo, SearchResult, ChannelPlaylist, FeaturedChannel } from '../../plugins/types'
 import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWatchedVideoIds } from '../../db/index'
@@ -8,6 +8,7 @@ import { getOrFetchChannelVideos } from '../../services/videoCache'
 import { getChannelInfoCached } from '../../services/metadata'
 import PageLayout from '../../components/PageLayout'
 import VideoCard from '../../components/VideoCard'
+import ChannelCard from '../../components/ChannelCard'
 import VideoThumbnail from '../../components/VideoThumbnail'
 import ToggleButton from '../../components/ToggleButton'
 import Button from '../../components/Button'
@@ -165,17 +166,22 @@ export default function Channel() {
       .catch(() => { setPlaylists([]); setLoadingPlaylists(false) })
   }, [tab, channelId, playlists])
 
+  // Loaded up front rather than on tab open: there is no flag telling us
+  // whether a channel features others, so the only way to know whether to show
+  // the tab is to look.
   useEffect(() => {
-    if (tab !== 'channels' || featured !== null || !channelId) return
+    if (!channelId) return
     const plugin = pluginManager.getActive()
     if (!plugin.getFeaturedChannels) { setFeatured([]); return }
 
+    let cancelled = false
     setLoadingFeatured(true)
     plugin
       .getFeaturedChannels(channelId)
-      .then(c => { setFeatured(c); setLoadingFeatured(false) })
-      .catch(() => { setFeatured([]); setLoadingFeatured(false) })
-  }, [tab, channelId, featured])
+      .then(c => { if (!cancelled) { setFeatured(c); setLoadingFeatured(false) } })
+      .catch(() => { if (!cancelled) { setFeatured([]); setLoadingFeatured(false) } })
+    return () => { cancelled = true }
+  }, [channelId])
 
   // Reveal another chunk of the grid when the sentinel scrolls into view.
   useEffect(() => {
@@ -243,18 +249,22 @@ export default function Channel() {
           >
             Videos
           </button>
-          <button
-            className={`channel-tab${tab === 'playlists' ? ' active' : ''}`}
-            onClick={() => setTab('playlists')}
-          >
-            Playlists
-          </button>
-          <button
-            className={`channel-tab${tab === 'channels' ? ' active' : ''}`}
-            onClick={() => setTab('channels')}
-          >
-            Channels
-          </button>
+          {info.hasPlaylists !== false && (
+            <button
+              className={`channel-tab${tab === 'playlists' ? ' active' : ''}`}
+              onClick={() => setTab('playlists')}
+            >
+              Playlists
+            </button>
+          )}
+          {(featured?.length ?? 0) > 0 && (
+            <button
+              className={`channel-tab${tab === 'channels' ? ' active' : ''}`}
+              onClick={() => setTab('channels')}
+            >
+              Channels
+            </button>
+          )}
           {tab === 'videos' && (
             <>
               <select
@@ -346,19 +356,14 @@ export default function Channel() {
           : !featured || featured.length === 0
             ? <p className="channel-tab-status">This channel doesn't feature any others.</p>
             : (
-              <ul className="featured-grid">
+              <ul className="channel-grid">
                 {featured.map(c => (
-                  <li key={c.channelId} className="featured-card">
-                    <Link to={`/channel/${c.channelId}`} className="featured-link">
-                      {c.avatar
-                        ? <img className="featured-avatar" src={c.avatar} alt="" loading="lazy" />
-                        : <div className="featured-avatar featured-avatar-initial">
-                            {c.name.charAt(0).toUpperCase()}
-                          </div>
-                      }
-                      <span className="featured-name">{c.name}</span>
-                    </Link>
-                  </li>
+                  <ChannelCard
+                    key={c.channelId}
+                    channelId={c.channelId}
+                    name={c.name}
+                    avatar={c.avatar}
+                  />
                 ))}
               </ul>
             )

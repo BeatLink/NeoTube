@@ -145,6 +145,10 @@ export async function getChannelInfo(channelId: string) {
     video_count_text: (about?.video_count ?? '') as string,
     country: (about?.country ?? '') as string,
     tags: (meta?.tags ?? []) as string[],
+    // Drives tab visibility. There is no equivalent flag for featured
+    // channels — has_home is true even when the shelf is absent — so that tab
+    // is decided by actually fetching the list.
+    has_playlists: !!channel?.has_playlists,
   }
 }
 
