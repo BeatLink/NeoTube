@@ -133,3 +133,30 @@
 .watch-error {
   color: var(--accent);
 }
+
+/* VideoMenu positions itself absolutely against the nearest positioned
+   ancestor, so give it one sized to the trigger. */
+.watch-menu {
+  position: relative;
+  width: 32px;
+  height: 32px;
+}
+
+/* On a card the trigger only appears on hover; here it is a primary action. */
+.watch-menu .video-menu-trigger {
+  position: static;
+  opacity: 1;
+  width: 32px;
+  height: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.watch-menu .video-menu-trigger:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.watch-menu .video-menu { top: 0; right: 0; }
+.watch-menu .video-menu-items { top: 38px; }

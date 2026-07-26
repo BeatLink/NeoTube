@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toQualityOptions } from '../src/components/VideoPlayer/VideoPlayer'
+import { toQualityOptions, RECOVERABLE_DASH_ERRORS } from '../src/components/VideoPlayer/VideoPlayer'
 
 // Mirrors what YouTube actually publishes: every height in vp9/av01, with avc1
 // added up to 1080p. Without de-duplication the picker shows each height 2–3×.
@@ -45,5 +45,24 @@ describe('toQualityOptions', () => {
 
   it('returns nothing for an empty representation list', () => {
     expect(toQualityOptions([])).toEqual([])
+  })
+})
+
+describe('RECOVERABLE_DASH_ERRORS', () => {
+  // A failed segment fetch is routine on a long video — dash.js retries it.
+  // Treating it as fatal dropped healthy 1080p playback to progressive 360p
+  // mid-video, which is what surfaced as "the old quality dropdown appears".
+  it('treats segment and manifest download failures as recoverable', () => {
+    for (const code of [17, 18, 25, 26, 27, 28, 29]) {
+      expect(RECOVERABLE_DASH_ERRORS.has(code)).toBe(true)
+    }
+  })
+
+  it('treats capability and source errors as fatal', () => {
+    // 23/24: no MediaSource or MediaKeys. 32: manifest has no streams.
+    // 35: the codec cannot be played. None of these improve on retry.
+    for (const code of [23, 24, 32, 35]) {
+      expect(RECOVERABLE_DASH_ERRORS.has(code)).toBe(false)
+    }
   })
 })

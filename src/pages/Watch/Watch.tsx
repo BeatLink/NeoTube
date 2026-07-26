@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { pluginManager } from '../../plugins/manager'
 import type { VideoInfo } from '../../plugins/types'
@@ -8,8 +8,14 @@ import VideoPlayer from '../../components/VideoPlayer'
 import Comments from '../../components/Comments'
 import PlaylistPicker from '../../components/PlaylistPicker'
 import { formatViews } from '../../utils/format'
+import VideoMenu from '../../components/VideoMenu'
+import { openInBrowser } from '../../utils/tauri'
 import Button from '../../components/Button'
 import './Watch.css'
+
+function watchUrl(videoId: string): string {
+  return `https://www.youtube.com/watch?v=${videoId}`
+}
 
 type State =
   | { status: 'loading' }
@@ -21,6 +27,14 @@ export default function Watch() {
   const [state, setState] = useState<State>({ status: 'loading' })
   const [subscribed, setSubscribed] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  // Set by the player; lets "copy link at current time" read the playhead.
+  const getCurrentTime = useRef<() => number>(() => 0)
+  // Declared here, not inline in the JSX: this component returns early while
+  // loading, and a hook below that point would change hook order between
+  // renders.
+  const handlePlayerReady = useCallback((fn: () => number) => {
+    getCurrentTime.current = fn
+  }, [])
   // Fetched alongside the video info so the page renders without waiting on it.
   // null means adaptive playback is unavailable and the player uses `streams`.
   const [manifest, setManifest] = useState<string | null>(null)
@@ -93,7 +107,12 @@ export default function Watch() {
 
   return (
     <div className="watch-page">
-      <VideoPlayer streams={info.streams} manifest={manifest} title={info.title} />
+      <VideoPlayer
+        streams={info.streams}
+        manifest={manifest}
+        title={info.title}
+        onReady={handlePlayerReady}
+      />
       <div className="watch-meta">
         <h1 className="watch-title">{info.title}</h1>
 
@@ -121,6 +140,38 @@ export default function Watch() {
               </span>
             )}
             <Button onClick={() => setPickerOpen(true)}>Add to playlist</Button>
+            <div className="watch-menu">
+              <VideoMenu
+                label="Video options"
+                actions={[
+                  {
+                    label: 'Open in YouTube',
+                    onSelect: () => openInBrowser(watchUrl(info.videoId)),
+                  },
+                  {
+                    label: 'Copy link',
+                    confirmation: 'Link copied',
+                    onSelect: () => navigator.clipboard.writeText(watchUrl(info.videoId)),
+                  },
+                  {
+                    label: 'Copy link at current time',
+                    confirmation: 'Link copied',
+                    onSelect: () => {
+                      const at = Math.floor(getCurrentTime.current())
+                      return navigator.clipboard.writeText(
+                        `${watchUrl(info.videoId)}&t=${at}`,
+                      )
+                    },
+                  },
+                  {
+                    label: 'Open channel in YouTube',
+                    onSelect: () => openInBrowser(
+                      `https://www.youtube.com/channel/${info.channelId}`,
+                    ),
+                  },
+                ]}
+              />
+            </div>
           </div>
         </div>
 

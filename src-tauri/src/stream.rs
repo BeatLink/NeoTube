@@ -62,6 +62,26 @@ fn error(status: StatusCode) -> Response<Vec<u8>> {
         .unwrap_or_else(|_| Response::new(Vec::new()))
 }
 
+/// Shared HTTP client for segment fetches.
+///
+/// A video pulls hundreds of segments, so building a client per request would
+/// discard the connection pool and repeat the TLS handshake every time —
+/// wasteful, and a likely source of the intermittent fetch failures that made
+/// dash.js drop to progressive playback.
+fn http_client() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            // Long enough for a slow segment, short enough that a dead
+            // connection doesn't stall the player indefinitely.
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .build()
+            .unwrap_or_default()
+    })
+}
+
 pub fn handle<R: tauri::Runtime>(
     _ctx: UriSchemeContext<'_, R>,
     request: Request<Vec<u8>>,
@@ -98,8 +118,7 @@ pub fn handle<R: tauri::Runtime>(
         .map(str::to_owned);
 
     tauri::async_runtime::spawn(async move {
-        let client = reqwest::Client::new();
-        let mut upstream = client.get(&url);
+        let mut upstream = http_client().get(&url);
         if let Some(range) = range {
             upstream = upstream.header("Range", range);
         }

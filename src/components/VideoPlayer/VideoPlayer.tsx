@@ -11,9 +11,29 @@ interface Props {
   /** DASH manifest from youtubei.js; null outside Tauri. */
   manifest?: string | null
   title: string
+  /** Receives a getter for the playhead, for things like timed share links. */
+  onReady?: (getCurrentTime: () => number) => void
 }
 
 const AUTO = 'auto'
+
+/**
+ * dash.js error codes that do not mean playback has failed.
+ *
+ * Segment and manifest fetches are retried internally, so these fire routinely
+ * during normal playback — most often when a request through the `ytstream://`
+ * proxy blips. Treating them as fatal would drop an otherwise healthy 1080p
+ * stream down to progressive 360p mid-video.
+ */
+export const RECOVERABLE_DASH_ERRORS = new Set([
+  17, // FRAGMENT_LOADER_LOADING_FAILURE
+  18, // FRAGMENT_LOADER_NULL_REQUEST
+  25, // DOWNLOAD_ERROR_ID_MANIFEST
+  26, // DOWNLOAD_ERROR_ID_SIDX
+  27, // DOWNLOAD_ERROR_ID_CONTENT
+  28, // DOWNLOAD_ERROR_ID_INITIALIZATION
+  29, // DOWNLOAD_ERROR_ID_XLINK
+])
 
 /** A selectable video quality. `id` is a dash.js representation id, or AUTO. */
 interface QualityOption {
@@ -64,7 +84,7 @@ function bestProgressive(streams: StreamUrl[]): StreamUrl | undefined {
  *
  * Falls back to progressive playback in the browser, or if dash.js errors.
  */
-export default function VideoPlayer({ streams, manifest, title }: Props) {
+export default function VideoPlayer({ streams, manifest, title, onReady }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<MediaPlayerClass | null>(null)
@@ -85,6 +105,10 @@ export default function VideoPlayer({ streams, manifest, title }: Props) {
   useEffect(() => {
     if (!useDash) setProgressive(bestProgressive(streams))
   }, [streams, useDash])
+
+  useEffect(() => {
+    onReady?.(() => videoRef.current?.currentTime ?? 0)
+  }, [onReady])
 
   /** Reveals the controls, then hides them again after a moment of stillness. */
   const notePointerActivity = useCallback(() => {
@@ -133,7 +157,7 @@ export default function VideoPlayer({ streams, manifest, title }: Props) {
   }, [])
 
   useEffect(() => {
-    if (!useDash || !manifest) return
+    if (dashFailed || !manifest) return
     const video = videoRef.current
     if (!video) return
 
@@ -156,8 +180,15 @@ export default function VideoPlayer({ streams, manifest, title }: Props) {
           ])
         })
 
-        player.on('error', () => {
-          if (!cancelled) setDashFailed(true)
+        player.on('error', (e: unknown) => {
+          if (cancelled) return
+          const code = (e as { error?: { code?: number } })?.error?.code
+          // dash.js retries transient segment and manifest fetches itself, and
+          // a single failed request is routine on a long video. Only give up
+          // when the stream genuinely cannot play — otherwise a blip would
+          // silently drop the whole session to progressive 360p.
+          if (code !== undefined && RECOVERABLE_DASH_ERRORS.has(code)) return
+          setDashFailed(true)
         })
 
         // The manifest is already in memory, so hand it over directly rather
@@ -176,7 +207,7 @@ export default function VideoPlayer({ streams, manifest, title }: Props) {
       player?.destroy()
       playerRef.current = null
     }
-  }, [manifest, useDash])
+  }, [manifest, dashFailed])
 
   const progressiveQualities = streams
     .filter(s => s.hasVideo)
