@@ -54,6 +54,19 @@ fn target_url(request: &Request<Vec<u8>>) -> Option<String> {
     None
 }
 
+/// Size of the range requested when the caller supplies none. Large enough to
+/// cover an init segment, small enough not to pull a whole file.
+const INITIAL_RANGE_BYTES: u64 = 1024 * 1024;
+
+/// True for `bytes=N-M`. An open-ended `bytes=N-` is rejected by googlevideo
+/// just like a missing header, so it does not count as bounded.
+fn is_bounded_range(value: &str) -> bool {
+    value
+        .strip_prefix("bytes=")
+        .and_then(|r| r.split_once('-'))
+        .is_some_and(|(start, end)| !start.is_empty() && !end.is_empty())
+}
+
 fn error(status: StatusCode) -> Response<Vec<u8>> {
     Response::builder()
         .status(status)
@@ -111,11 +124,27 @@ pub fn handle<R: tauri::Runtime>(
     }
 
     // Forward the Range header so seeking and segment requests work.
+    //
+    // googlevideo rejects a request with no bounded range: both a missing
+    // `Range` header and an open-ended `bytes=N-` return 403, even though the
+    // URL is otherwise valid. dash.js issues exactly such a request when it
+    // fetches an init segment via the `&range=` query parameter, so supply a
+    // bounded header when neither form is present.
     let range = request
         .headers()
         .get("range")
         .and_then(|v| v.to_str().ok())
-        .map(str::to_owned);
+        .filter(|value| is_bounded_range(value))
+        .map(str::to_owned)
+        .or_else(|| {
+            if url.contains("&range=") || url.contains("?range=") {
+                None
+            } else {
+                Some(format!("bytes=0-{}", INITIAL_RANGE_BYTES - 1))
+            }
+        });
+
+    let logged_range = range.clone();
 
     tauri::async_runtime::spawn(async move {
         let mut upstream = http_client().get(&url);
@@ -134,6 +163,17 @@ pub fn handle<R: tauri::Runtime>(
 
         let response = match result {
             Ok((status, headers, body)) => {
+                if !status.is_success() {
+                    // Kept deliberately: a 403 here means googlevideo rejected
+                    // the request, which is the only failure mode seen so far
+                    // and is otherwise invisible from the webview console.
+                    eprintln!(
+                        "[ytstream] upstream {} range={:?} itag={:?}",
+                        status,
+                        logged_range,
+                        url.split("itag=").nth(1).and_then(|s| s.split('&').next()),
+                    );
+                }
                 let mut builder = Response::builder()
                     .status(status)
                     // The header googlevideo omits and the webview requires.
@@ -156,7 +196,10 @@ pub fn handle<R: tauri::Runtime>(
                     .body(body.to_vec())
                     .unwrap_or_else(|_| error(StatusCode::INTERNAL_SERVER_ERROR))
             }
-            Err(_) => error(StatusCode::BAD_GATEWAY),
+            Err(e) => {
+                eprintln!("[ytstream] upstream request failed: {e}");
+                error(StatusCode::BAD_GATEWAY)
+            }
         };
 
         responder.respond(response);
@@ -198,6 +241,23 @@ mod tests {
             target_url(&req).as_deref(),
             Some("https://rr3.googlevideo.com/videoplayback?itag=137")
         );
+    }
+
+    #[test]
+    fn recognises_bounded_ranges() {
+        assert!(is_bounded_range("bytes=0-1023"));
+        assert!(is_bounded_range("bytes=500-999"));
+    }
+
+    // googlevideo 403s on these exactly as it does on a missing header, so they
+    // must not be treated as usable.
+    #[test]
+    fn rejects_open_ended_and_malformed_ranges() {
+        assert!(!is_bounded_range("bytes=0-"));
+        assert!(!is_bounded_range("bytes=-500"));
+        assert!(!is_bounded_range("bytes="));
+        assert!(!is_bounded_range("0-1023"));
+        assert!(!is_bounded_range(""));
     }
 
     #[test]
