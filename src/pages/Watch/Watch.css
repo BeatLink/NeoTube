@@ -1,8 +1,12 @@
+/* Fills the content column rather than sitting at a fixed 960px, but stays
+   readable on very wide displays. */
 .watch-page {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 960px;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
 }
 
 .watch-meta {
@@ -21,17 +25,61 @@
   align-items: center;
   gap: 14px;
   margin-top: 4px;
+  flex-wrap: wrap;
 }
 
-.watch-channel {
-  color: var(--text-muted);
-  font-size: 0.9rem;
+.watch-channel-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   text-decoration: none;
 }
 
-.watch-channel:hover {
+.watch-channel-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-hover);
+  flex-shrink: 0;
+}
+
+.watch-channel-avatar-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Pushed to the far end of the row, opposite the channel identity. */
+.watch-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.watch-stat {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.watch-stats {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.watch-channel {
   color: var(--text);
-  text-decoration: underline;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.watch-channel-link:hover .watch-channel {
+  color: var(--accent);
 }
 
 /* Button component provides border-radius, cursor, transition */

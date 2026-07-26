@@ -1,0 +1,82 @@
+.comments-status {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 20px 0;
+}
+
+.comments { margin-top: 24px; }
+
+.comments-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+
+.comments-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.comment {
+  display: flex;
+  gap: 12px;
+}
+
+.comment-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--surface-hover);
+}
+
+.comment-avatar-blank { background: var(--surface-hover); }
+
+.comment-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.comment-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+}
+
+.comment-author {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The uploader's own comments carry a tinted chip, as on YouTube. */
+.comment-author-owner {
+  background: var(--accent-bg);
+  color: var(--accent);
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+.comment-date { color: var(--text-muted); }
+
+.comment-text {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.comment-meta {
+  display: flex;
+  gap: 14px;
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}

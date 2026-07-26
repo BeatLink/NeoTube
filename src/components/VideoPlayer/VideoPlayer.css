@@ -7,9 +7,13 @@
   overflow: hidden;
 }
 
+/* Fills the available width; the height cap keeps the metadata below it on
+   screen rather than letting the video push everything out of view. */
 .video-element {
   width: 100%;
-  max-height: 70vh;
+  max-height: calc(100vh - 220px);
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
   background: #000;
   display: block;
 }

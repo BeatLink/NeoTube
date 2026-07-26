@@ -1,6 +1,6 @@
 import * as innertube from './innertube'
 import type { ChannelSort } from './innertube'
-import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, ChannelPlaylist, PlaylistDetail, FeaturedChannel, ChannelSearchResult, StreamUrl } from '../types'
+import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, ChannelPlaylist, PlaylistDetail, FeaturedChannel, ChannelSearchResult, CommentThread, StreamUrl } from '../types'
 
 interface YtjsRawFormat {
   url?: string
@@ -54,12 +54,34 @@ export class YoutubeJsPlugin implements VideoPlugin {
       title: raw.title ?? '',
       channelId: raw.channel_id ?? '',
       channelName: raw.channel_name ?? '',
+      channelAvatar: raw.channel_avatar,
       description: raw.short_description ?? '',
       duration: raw.duration ?? 0,
       thumbnail: raw.thumbnail ?? '',
       publishedAt: '',
       viewCount: raw.view_count,
+      likeCount: raw.like_count,
+      publishedText: raw.published_text,
+      publishedRelative: raw.published_relative,
       streams,
+    }
+  }
+
+  async getComments(videoId: string, limit = 20): Promise<CommentThread> {
+    const raw = await innertube.getComments(videoId, limit)
+    return {
+      totalText: raw.total_text,
+      comments: raw.comments.map(c => ({
+        commentId: c.comment_id,
+        author: c.author,
+        authorAvatar: c.author_avatar,
+        authorIsOwner: c.author_is_owner,
+        text: c.text,
+        likeCount: c.like_count,
+        publishedText: c.published_text,
+        replyCount: c.reply_count,
+        isPinned: c.is_pinned,
+      })),
     }
   }
 

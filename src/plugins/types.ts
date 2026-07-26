@@ -11,16 +11,40 @@ export interface StreamUrl {
   hasAudio: boolean
 }
 
+export interface Comment {
+  commentId: string
+  author: string
+  authorAvatar: string
+  authorIsOwner: boolean
+  text: string
+  /** Pre-formatted by YouTube, e.g. "272K". */
+  likeCount: string
+  publishedText: string
+  replyCount: string
+  isPinned: boolean
+}
+
+export interface CommentThread {
+  comments: Comment[]
+  /** e.g. "2,445,333 Comments" */
+  totalText: string
+}
+
 export interface VideoInfo {
   videoId: string
   title: string
   channelId: string
   channelName: string
+  channelAvatar?: string
   description: string
   duration: number      // seconds
   thumbnail: string
   publishedAt: string
   viewCount?: number
+  likeCount?: number
+  /** "Oct 25, 2009" and "16 years ago", as YouTube formats them. */
+  publishedText?: string
+  publishedRelative?: string
   streams: StreamUrl[]
 }
 
@@ -136,6 +160,8 @@ export interface VideoPlugin {
   getChannelPlaylists?(channelId: string, limit?: number): Promise<ChannelPlaylist[]>
   /** Searches within one channel's full catalogue, not just loaded videos. */
   searchChannelVideos?(channelId: string, query: string, limit?: number): Promise<SearchResult[]>
+  /** Top-level comments for a video. */
+  getComments?(videoId: string, limit?: number): Promise<CommentThread>
   /** Fetches a playlist and its videos. */
   getPlaylist?(playlistId: string, limit?: number): Promise<PlaylistDetail>
   /** Channels this channel features on its home tab. */

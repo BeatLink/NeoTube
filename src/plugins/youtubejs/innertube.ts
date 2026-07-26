@@ -75,16 +75,80 @@ export async function getInfo(videoId: string) {
       bitrate: f.bitrate as number | undefined,
     }
   }))
+  // The owner block carries the channel avatar; primary_info has the dates and
+  // the formatted view count.
+  const owner = (info as any).secondary_info?.owner ?? {}
+  const primary = (info as any).primary_info ?? {}
+  const ownerThumbs: Array<{ url: string; width?: number }> = owner?.author?.thumbnails ?? []
+
   return {
     id: b.id as string | undefined,
     title: b.title as string | undefined,
     channel_id: b.channel?.id as string | undefined,
     channel_name: (b.channel?.name ?? b.author) as string | undefined,
+    channel_avatar: (ownerThumbs.length
+      ? [...ownerThumbs].sort((x, y) => (y.width ?? 0) - (x.width ?? 0))[0].url
+      : '') as string,
     duration: b.duration as number | undefined,
     view_count: b.view_count as number | undefined,
+    like_count: b.like_count as number | undefined,
+    // "Oct 25, 2009" and "16 years ago" — both pre-formatted by YouTube.
+    published_text: (primary?.published?.text ?? '') as string,
+    published_relative: (primary?.relative_date?.text ?? '') as string,
     short_description: b.short_description as string | undefined,
     thumbnail: b.thumbnail?.[b.thumbnail.length - 1]?.url as string | undefined,
     formats: formats.filter(f => f.url),
+  }
+}
+
+export interface RawComment {
+  comment_id: string
+  author: string
+  author_avatar: string
+  author_is_owner: boolean
+  text: string
+  like_count: string
+  published_text: string
+  reply_count: string
+  is_pinned: boolean
+}
+
+/**
+ * Fetches top-level comments for a video.
+ *
+ * Returns an empty list when comments are disabled rather than throwing, since
+ * the Watch page treats them as optional.
+ */
+export async function getComments(videoId: string, limit = 20) {
+  const yt = await getClient()
+  let thread: any
+  try { thread = await yt.getComments(videoId) } catch { return { comments: [], total_text: '' } }
+
+  const raw: any[] = thread?.contents ?? thread?.comments ?? []
+  const comments: RawComment[] = raw
+    .map((item: any) => {
+      const c = item?.comment ?? item
+      if (!c?.comment_id) return null
+      const thumbs: Array<{ url: string; width?: number }> = c?.author?.thumbnails ?? []
+      return {
+        comment_id: c.comment_id as string,
+        author: (c.author?.name ?? '') as string,
+        author_avatar: (thumbs.length
+          ? [...thumbs].sort((x, y) => (y.width ?? 0) - (x.width ?? 0))[0].url
+          : '') as string,
+        author_is_owner: !!c.author_is_channel_owner,
+        text: (c.content?.text ?? '') as string,
+        like_count: (c.like_count ?? '') as string,
+        published_text: (c.published_time ?? '') as string,
+        reply_count: (c.reply_count ?? '') as string,
+        is_pinned: !!c.is_pinned,
+      }
+    })
+    .filter(Boolean) as RawComment[]
+
+  return {
+    comments: comments.slice(0, limit),
+    total_text: (thread?.header?.count?.text ?? '') as string,
   }
 }
 
