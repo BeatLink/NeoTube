@@ -1,0 +1,65 @@
+.video-menu {
+  position: absolute;
+  top: 4px;
+  /* `right` is set inline so the trigger can dodge the remove button. */
+  z-index: 2;
+}
+
+.video-menu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+/* Revealed on hover, like the remove button. Stays visible while the menu is
+   open so it doesn't vanish from under the pointer. */
+.video-card:hover .video-menu-trigger,
+.video-menu-trigger:focus-visible,
+.video-menu[data-open='true'] .video-menu-trigger {
+  opacity: 1;
+}
+
+.video-menu-trigger:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.video-menu-items {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  min-width: 168px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+}
+
+.video-menu-item {
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.video-menu-item:hover {
+  background: var(--surface-hover);
+}

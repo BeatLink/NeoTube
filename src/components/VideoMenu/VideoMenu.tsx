@@ -11,12 +11,14 @@ export interface VideoMenuAction {
 interface VideoMenuProps {
   actions: VideoMenuAction[]
   label?: string
+  /** Distance from the card's right edge, in px. */
+  offset?: number
 }
 
 /** How long a confirmation label stays visible before reverting. */
 const CONFIRM_MS = 1200
 
-export default function VideoMenu({ actions, label = 'Video options' }: VideoMenuProps) {
+export default function VideoMenu({ actions, label = 'Video options', offset = 4 }: VideoMenuProps) {
   const [open, setOpen] = useState(false)
   const [confirmed, setConfirmed] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -60,7 +62,12 @@ export default function VideoMenu({ actions, label = 'Video options' }: VideoMen
   }
 
   return (
-    <div className="video-menu" ref={containerRef}>
+    <div
+      className="video-menu"
+      ref={containerRef}
+      data-open={open ? 'true' : undefined}
+      style={{ right: offset }}
+    >
       <button
         type="button"
         className="video-menu-trigger"
