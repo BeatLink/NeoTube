@@ -94,6 +94,9 @@ export default function VideoPlayer({ streams, manifest, title, onReady }: Props
   const [selectedQuality, setSelectedQuality] = useState<string>(AUTO)
   const [dashFailed, setDashFailed] = useState(false)
   const [pointerActive, setPointerActive] = useState(false)
+  // What the player is doing before the first frame, so a slow or wedged start
+  // shows its stage instead of an unexplained spinner.
+  const [loadPhase, setLoadPhase] = useState<string | null>('Loading…')
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const playback = useVideoPlayback(videoRef)
   const [progressive, setProgressive] = useState<StreamUrl | undefined>(
@@ -109,6 +112,11 @@ export default function VideoPlayer({ streams, manifest, title, onReady }: Props
   useEffect(() => {
     onReady?.(() => videoRef.current?.currentTime ?? 0)
   }, [onReady])
+
+  // Once there are frames, the startup phase is over for good.
+  useEffect(() => {
+    if (playback.state.hasMetadata && playback.state.readyState >= 3) setLoadPhase(null)
+  }, [playback.state.hasMetadata, playback.state.readyState])
 
   /** Reveals the controls, then hides them again after a moment of stillness. */
   const notePointerActivity = useCallback(() => {
@@ -163,6 +171,7 @@ export default function VideoPlayer({ streams, manifest, title, onReady }: Props
 
     let cancelled = false
     let player: MediaPlayerClass | null = null
+    setLoadPhase('Loading…')
 
     // dash.js is large; only pull it in when a manifest is actually played.
     import('dashjs')
@@ -172,8 +181,13 @@ export default function VideoPlayer({ streams, manifest, title, onReady }: Props
         player = MediaPlayer().create()
         playerRef.current = player
 
+        player.on('manifestLoaded', () => {
+          if (!cancelled) setLoadPhase('Reading streams…')
+        })
+
         player.on('streamInitialized', () => {
           if (cancelled || !player) return
+          setLoadPhase('Buffering…')
           setQualities([
             { id: AUTO, label: 'Auto' },
             ...toQualityOptions(player.getRepresentationsByType('video')),
@@ -269,7 +283,14 @@ export default function VideoPlayer({ streams, manifest, title, onReady }: Props
         onDoubleClick={toggleFullscreen}
       />
 
-      {playback.state.stalled && <div className="video-spinner" aria-label="Buffering" />}
+      {(loadPhase || playback.state.stalled) && (
+        <div className="video-loading" role="status">
+          <div className="video-spinner" />
+          <p className="video-loading-text">
+            {loadPhase ?? 'Buffering…'}
+          </p>
+        </div>
+      )}
 
       <VideoControls
         state={playback.state}

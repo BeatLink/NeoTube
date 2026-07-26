@@ -12,6 +12,15 @@ export interface PlaybackState {
   rate: number
   /** True while the element is waiting on data. */
   stalled: boolean
+  /**
+   * How far the element has got towards being playable, mirroring
+   * HTMLMediaElement.readyState. Distinguishes "still fetching metadata" from
+   * "have metadata but no frames" — the difference between a slow start and a
+   * stream that will never play.
+   */
+  readyState: number
+  /** True once metadata has arrived, so duration and tracks are known. */
+  hasMetadata: boolean
 }
 
 const INITIAL: PlaybackState = {
@@ -23,6 +32,8 @@ const INITIAL: PlaybackState = {
   muted: false,
   rate: 1,
   stalled: false,
+  readyState: 0,
+  hasMetadata: false,
 }
 
 const VOLUME_KEY = 'player-volume'
@@ -68,6 +79,8 @@ export function useVideoPlayback(videoRef: React.RefObject<HTMLVideoElement | nu
       muted: video.muted,
       rate: video.playbackRate,
       stalled: video.readyState < video.HAVE_FUTURE_DATA && !video.paused,
+      readyState: video.readyState,
+      hasMetadata: video.readyState >= video.HAVE_METADATA,
     })
 
     const events = [
