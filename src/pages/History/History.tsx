@@ -3,6 +3,7 @@ import { getHistory, removeFromHistory, clearHistory } from '../../db/index'
 import PageLayout from '../../components/PageLayout'
 import VideoCard from '../../components/VideoCard'
 import Button from '../../components/Button'
+import { useScrollContainer } from '../../hooks/useScrollContainer'
 import { thumbnailUrl } from '../../utils/avatar'
 import { timeAgo } from '../../utils/format'
 import type { WatchHistoryEntry } from '../../types'
@@ -27,13 +28,17 @@ export default function History() {
   const visibleCountRef = useRef(visibleCount)
   const scrollRestoredRef = useRef(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
+  // The window never scrolls in this layout; `.content` does.
+  const scrollContainer = useScrollContainer()
+  const scrollRef = useRef<HTMLElement | null>(null)
+  useEffect(() => { scrollRef.current = scrollContainer }, [scrollContainer])
 
   useEffect(() => { visibleCountRef.current = visibleCount }, [visibleCount])
 
   useEffect(() => {
     return () => {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({
-        scrollY: window.scrollY,
+        scrollY: scrollRef.current?.scrollTop ?? 0,
         count: visibleCountRef.current,
       }))
     }
@@ -48,7 +53,11 @@ export default function History() {
 
   useEffect(() => {
     if (!loading && history.length > 0 && !scrollRestoredRef.current && initState.scrollY > 0) {
-      window.scrollTo(0, initState.scrollY)
+      if (typeof scrollContainer?.scrollTo === 'function') {
+        scrollContainer.scrollTo(0, initState.scrollY)
+      } else if (scrollContainer) {
+        scrollContainer.scrollTop = initState.scrollY
+      }
       scrollRestoredRef.current = true
     }
   }, [loading, history.length, initState.scrollY])

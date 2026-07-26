@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
-import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { NavLink, Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useTheme } from '../../contexts/ThemeContext'
+import { ScrollContainerContext } from '../../hooks/useScrollContainer'
 import { parseVideoId, parseChannelUrl } from '../../utils/youtube'
 import { getSubscriptions, subscribe } from '../../db/index'
 import { downloadAvatar } from '../../utils/avatar'
@@ -11,12 +12,25 @@ import type { Subscription } from '../../types'
 export default function Layout() {
   const { theme, toggle } = useTheme()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const contentRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const [subs, setSubs] = useState<Subscription[]>([])
 
   const loadSubs = useCallback(() => {
     getSubscriptions().then(setSubs).catch(() => {})
   }, [])
+
+  // `.content` scrolls, not the window, and React Router only resets window
+  // scroll — so without this the offset carries into the next page, which on a
+  // short page leaves it scrolled past its own content with no way back.
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    // jsdom has no Element.scrollTo, so fall back to assigning scrollTop.
+    if (typeof el.scrollTo === 'function') el.scrollTo(0, 0)
+    else el.scrollTop = 0
+  }, [pathname])
 
   useEffect(() => {
     loadSubs()
@@ -121,8 +135,10 @@ export default function Layout() {
         </Button>
       </header>
 
-      <div className="content">
-        <Outlet />
+      <div className="content" ref={contentRef}>
+        <ScrollContainerContext.Provider value={contentRef}>
+          <Outlet />
+        </ScrollContainerContext.Provider>
       </div>
     </div>
   )

@@ -423,18 +423,33 @@ export async function getChannelPlaylists(channelId: string, limit: number) {
   const channel = await yt.getChannel(channelId) as any
   let tab: any
   try { tab = await channel.getPlaylists() } catch { return [] }
+
   const raw: any[] = tab?.playlists ?? tab?.items ?? tab?.contents ?? []
   return raw
     .map((item: any) => {
       const p = item?.content ?? item
-      const id = p?.id ?? p?.playlist_id
+      // Newer responses use LockupView, where the id, title, thumbnail and
+      // count all sit somewhere different from the legacy shape.
+      const id: string | undefined = p?.id ?? p?.playlist_id ?? p?.content_id
       if (!id) return null
-      const thumbs: Array<{ url: string }> = p?.thumbnails ?? p?.thumbnail ?? []
+
+      const thumbs: Array<{ url: string }> =
+        p?.content_image?.primary_thumbnail?.image
+        ?? p?.thumbnails
+        ?? p?.thumbnail
+        ?? []
+
+      // The video count arrives as a badge like "27 episodes".
+      const badges: string[] = (p?.content_image?.primary_thumbnail?.overlays ?? [])
+        .flatMap((o: any) => o?.badges ?? [])
+        .map((b: any) => b?.text)
+        .filter((t: unknown): t is string => typeof t === 'string')
+
       return {
         playlist_id: id as string,
-        title: (p?.title?.text ?? p?.title ?? '') as string,
+        title: (p?.metadata?.title?.text ?? p?.title?.text ?? p?.title ?? '') as string,
         thumbnail: thumbs.length > 0 ? thumbs[0].url : '',
-        video_count_text: (p?.video_count?.text ?? p?.video_count ?? null) as string | null,
+        video_count_text: (p?.video_count?.text ?? p?.video_count ?? badges[0] ?? null) as string | null,
       }
     })
     .filter(Boolean)
