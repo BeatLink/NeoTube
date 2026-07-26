@@ -107,6 +107,19 @@ player feeds a DASH manifest to dash.js rather than setting `src` directly:
 - Each resolution is published in several codecs (vp9/av01/avc1), so the quality
   list must be de-duplicated by height — see `toQualityOptions` and
   `tests/videoPlayer.test.ts`.
+- The player uses **custom controls**, not `<video controls>`. Playback state is
+  mirrored from the element by `useVideoPlayback`, so external changes (dash.js,
+  media keys, autoplay policy) stay in sync; the element remains the source of
+  truth. The native bar was dropped because it renders in the browser's shadow
+  DOM and cannot host the quality or speed menus.
+
+### youtubei.js payload repairs
+
+`repairYouTubePayload` in `src/utils/tauri.ts` patches responses in transit to
+work around live schema changes that youtubei.js 17.2.0 cannot parse — currently
+a missing `commentEntityPayload.avatar` (which throws for the whole response) and
+comment replies moving to `subThreads`. Check whether upstream has caught up
+before adding more, and delete the repairs once it has.
 
 Adding a page: create `src/pages/<Name>/<Name>.tsx` (+ `.css`, `index.ts`), then add a `<Route>` in `src/App.tsx`.
 

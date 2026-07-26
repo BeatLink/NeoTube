@@ -321,7 +321,8 @@ _To be defined._
 - [x] FreeTube import as a Rust command (`src-tauri/src/freetube.rs`)
 - [x] youtube.js is the client's only backend; yt-dlp and Capacitor removed
 - [x] Adaptive DASH playback up to 2160p (dash.js + `ytstream://` segment proxy)
-- [x] Quality dropdown and fullscreen toggle overlaid on the player
+- [x] Custom player controls: play/pause, seek with buffer indicator, volume,
+      speed, quality, fullscreen, and keyboard shortcuts
 - [x] Home page removed; startup page is configurable in Settings
 - [x] Channel pages load every video via continuations, not just the first 30
 - [x] Video card overflow menu: mark as watched, open in YouTube, copy link

@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MediaPlayerClass } from 'dashjs'
 import type { StreamUrl } from '../../plugins/types'
+import { useVideoPlayback } from '../../hooks/useVideoPlayback'
+import VideoControls from '../VideoControls'
 import './VideoPlayer.css'
 
 interface Props {
@@ -71,6 +73,9 @@ export default function VideoPlayer({ streams, manifest, title }: Props) {
   const [qualities, setQualities] = useState<QualityOption[]>([])
   const [selectedQuality, setSelectedQuality] = useState<string>(AUTO)
   const [dashFailed, setDashFailed] = useState(false)
+  const [pointerActive, setPointerActive] = useState(false)
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const playback = useVideoPlayback(videoRef)
   const [progressive, setProgressive] = useState<StreamUrl | undefined>(
     () => bestProgressive(streams),
   )
@@ -80,6 +85,44 @@ export default function VideoPlayer({ streams, manifest, title }: Props) {
   useEffect(() => {
     if (!useDash) setProgressive(bestProgressive(streams))
   }, [streams, useDash])
+
+  /** Reveals the controls, then hides them again after a moment of stillness. */
+  const notePointerActivity = useCallback(() => {
+    setPointerActive(true)
+    if (idleTimer.current) clearTimeout(idleTimer.current)
+    idleTimer.current = setTimeout(() => setPointerActive(false), 2500)
+  }, [])
+
+  useEffect(() => () => { if (idleTimer.current) clearTimeout(idleTimer.current) }, [])
+
+  /** Standard player shortcuts, matching what YouTube uses. */
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Don't hijack typing in the quality/speed menus or elsewhere.
+    const target = e.target as HTMLElement
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+
+    const handlers: Record<string, () => void> = {
+      ' ': playback.togglePlay,
+      k: playback.togglePlay,
+      ArrowLeft: () => playback.skip(-5),
+      ArrowRight: () => playback.skip(5),
+      j: () => playback.skip(-10),
+      l: () => playback.skip(10),
+      ArrowUp: () => playback.setVolume(playback.state.volume + 0.05),
+      ArrowDown: () => playback.setVolume(playback.state.volume - 0.05),
+      m: playback.toggleMute,
+      f: () => { void toggleFullscreen() },
+      Home: () => playback.seek(0),
+      End: () => playback.seek(playback.state.duration),
+    }
+
+    const handler = handlers[e.key]
+    if (handler) {
+      e.preventDefault()
+      handler()
+      notePointerActivity()
+    }
+  }, [playback, notePointerActivity])
 
   // Track fullscreen externally too — Escape and F11 bypass our button.
   useEffect(() => {
@@ -135,6 +178,10 @@ export default function VideoPlayer({ streams, manifest, title }: Props) {
     }
   }, [manifest, useDash])
 
+  const progressiveQualities = streams
+    .filter(s => s.hasVideo)
+    .map(s => ({ id: s.url, label: s.quality }))
+
   function handleQualityChange(id: string) {
     setSelectedQuality(id)
     const player = playerRef.current
@@ -150,8 +197,8 @@ export default function VideoPlayer({ streams, manifest, title }: Props) {
   }
 
   async function toggleFullscreen() {
-    // Fullscreen the container, not the <video>, so the quality dropdown stays
-    // reachable — a natively fullscreened video hides sibling elements.
+    // Fullscreen the container, not the <video>, so our own controls stay
+    // visible — a natively fullscreened video hides sibling elements.
     const container = containerRef.current
     if (!container) return
     try {
@@ -164,72 +211,50 @@ export default function VideoPlayer({ streams, manifest, title }: Props) {
     return <p className="player-error">No streams available.</p>
   }
 
+  // Controls stay up while paused so they don't vanish mid-decision.
+  const controlsPinned = !playback.state.playing
+
   return (
     <div
-      className={`video-player${isFullscreen ? ' video-player-fullscreen' : ''}`}
+      className={[
+        'video-player',
+        isFullscreen ? ' video-player-fullscreen' : '',
+        controlsPinned || pointerActive ? ' video-player-active' : '',
+      ].join('')}
       ref={containerRef}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onPointerMove={notePointerActivity}
+      onPointerLeave={() => setPointerActive(false)}
+      aria-label={`Video player: ${title}`}
     >
       <video
         ref={videoRef}
         src={useDash ? undefined : progressive?.url}
-        controls
         autoPlay
         title={title}
         className="video-element"
+        onClick={playback.togglePlay}
         onDoubleClick={toggleFullscreen}
       />
 
-      {/* Overlaid on the video rather than injected into the native control
-          bar, which lives in the browser's shadow DOM and can't be extended. */}
-      <div className="player-controls">
-        <label className="quality-label" htmlFor="quality-select">Quality</label>
-        {useDash ? (
-          <select
-            id="quality-select"
-            className="quality-select"
-            value={selectedQuality}
-            onChange={e => handleQualityChange(e.target.value)}
-            disabled={qualities.length === 0}
-          >
-            {qualities.length === 0
-              ? <option value={AUTO}>Loading…</option>
-              : qualities.map(q => <option key={q.id} value={q.id}>{q.label}</option>)}
-          </select>
-        ) : (
-          <select
-            id="quality-select"
-            className="quality-select"
-            value={progressive?.url ?? ''}
-            onChange={e => setProgressive(streams.find(s => s.url === e.target.value))}
-          >
-            {streams.filter(s => s.hasVideo).map((s, i) => (
-              <option key={`${s.quality}-${s.format}-${i}`} value={s.url}>{s.quality}</option>
-            ))}
-          </select>
-        )}
+      {playback.state.stalled && <div className="video-spinner" aria-label="Buffering" />}
 
-        <button
-          type="button"
-          className="fullscreen-btn"
-          onClick={toggleFullscreen}
-          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-        >
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            {isFullscreen ? (
-              <path
-                fill="currentColor"
-                d="M8 8H3V6h3V3h2v5zm8 0V3h2v3h3v2h-5zm0 8h5v2h-3v3h-2v-5zM8 16v5H6v-3H3v-2h5z"
-              />
-            ) : (
-              <path
-                fill="currentColor"
-                d="M3 3h5v2H5v3H3V3zm13 0h5v5h-2V5h-3V3zM5 16v3h3v2H3v-5h2zm14 0h2v5h-5v-2h3v-3z"
-              />
-            )}
-          </svg>
-        </button>
-      </div>
+      <VideoControls
+        state={playback.state}
+        qualities={useDash ? qualities : progressiveQualities}
+        selectedQuality={useDash ? selectedQuality : (progressive?.url ?? '')}
+        fullscreen={isFullscreen}
+        onTogglePlay={playback.togglePlay}
+        onSeek={playback.seek}
+        onSetVolume={playback.setVolume}
+        onToggleMute={playback.toggleMute}
+        onSetRate={playback.setRate}
+        onSelectQuality={useDash
+          ? handleQualityChange
+          : url => setProgressive(streams.find(s => s.url === url))}
+        onToggleFullscreen={toggleFullscreen}
+      />
     </div>
   )
 }

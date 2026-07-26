@@ -1,0 +1,211 @@
+/* Control bar overlaid on the video. Shown while the player is hovered,
+   focused, or paused — see .video-player rules in VideoPlayer.css. */
+.vc {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+  color: #fff;
+}
+
+/* ── Seek bar ──────────────────────────────────────────────────────────────
+   A native range input, restyled: it gives keyboard support and drag handling
+   for free, which a div-based bar would have to reimplement. */
+.vc-seek {
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.vc-seek::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background:
+    linear-gradient(to right, var(--accent) var(--vc-progress), transparent var(--vc-progress)),
+    linear-gradient(to right, rgba(255, 255, 255, 0.45) var(--vc-buffered), transparent var(--vc-buffered)),
+    rgba(255, 255, 255, 0.2);
+}
+
+.vc-seek::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background:
+    linear-gradient(to right, var(--accent) var(--vc-progress), transparent var(--vc-progress)),
+    linear-gradient(to right, rgba(255, 255, 255, 0.45) var(--vc-buffered), transparent var(--vc-buffered)),
+    rgba(255, 255, 255, 0.2);
+}
+
+.vc-seek::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  /* Hidden until interaction, like YouTube's. */
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.vc-seek::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.video-player:hover .vc-seek::-webkit-slider-thumb,
+.vc-seek:focus-visible::-webkit-slider-thumb { opacity: 1; }
+.video-player:hover .vc-seek::-moz-range-thumb,
+.vc-seek:focus-visible::-moz-range-thumb { opacity: 1; }
+
+/* ── Button row ────────────────────────────────────────────────────────────── */
+
+.vc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vc-spacer { flex: 1; }
+
+.vc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.vc-btn:hover { background: rgba(255, 255, 255, 0.15); }
+
+.vc-btn-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.vc-time {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+}
+
+/* ── Volume ────────────────────────────────────────────────────────────────
+   The slider stays collapsed until the group is hovered, to keep the bar tidy. */
+
+.vc-volume {
+  display: flex;
+  align-items: center;
+}
+
+.vc-volume-slider {
+  width: 0;
+  opacity: 0;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  transition: width 0.18s, opacity 0.18s;
+}
+
+.vc-volume:hover .vc-volume-slider,
+.vc-volume-slider:focus-visible {
+  width: 72px;
+  opacity: 1;
+  margin-left: 4px;
+}
+
+.vc-volume-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.vc-volume-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.vc-volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -3.5px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.vc-volume-slider::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+}
+
+/* ── Menus ─────────────────────────────────────────────────────────────────── */
+
+.vc-menus {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.vc-menu-wrap { position: relative; }
+
+.vc-menu {
+  position: absolute;
+  right: 0;
+  bottom: 38px;
+  min-width: 110px;
+  max-height: 240px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 4px;
+  margin: 0;
+  background: rgba(20, 20, 20, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+.vc-menu-item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #fff;
+  font-size: 0.8rem;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vc-menu-item:hover { background: rgba(255, 255, 255, 0.14); }
+
+.vc-menu-item.active { color: var(--accent); font-weight: 600; }
