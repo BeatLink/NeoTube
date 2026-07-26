@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import VideoThumbnail from '../VideoThumbnail'
 import VideoMenu, { type VideoMenuAction } from '../VideoMenu'
+import PlaylistPicker from '../PlaylistPicker'
 import { recordWatch } from '../../db/index'
 import { formatViews, timeAgo } from '../../utils/format'
 import { openInBrowser } from '../../utils/tauri'
@@ -37,6 +39,8 @@ export default function VideoCard({
   dimmed, meta, viewCount, publishedAt, viewCountText, publishedText,
   onRemove, removeLabel, onMarkWatched,
 }: VideoCardProps) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+
   // YouTube's listing APIs return these already humanized ("1.4M views",
   // "2 weeks ago"); fall back to formatting raw values when they don't.
   const views = viewCountText
@@ -65,6 +69,10 @@ export default function VideoCard({
       confirmation: 'Link copied',
       onSelect: () => navigator.clipboard.writeText(watchUrl(videoId)),
     },
+    {
+      label: 'Add to playlist',
+      onSelect: () => setPickerOpen(true),
+    },
   ]
 
   return (
@@ -89,6 +97,21 @@ export default function VideoCard({
         label={`Options for ${title}`}
         offset={onRemove ? 32 : 4}
       />
+      {pickerOpen && (
+        <PlaylistPicker
+          video={{
+            videoId,
+            title,
+            channelId: channelId ?? '',
+            channelName: channelName ?? '',
+            thumbnail: thumbnail ?? '',
+            duration: duration ?? 0,
+            viewCountText,
+            publishedText,
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
       {onRemove && (
         <button
           className="video-card-remove"

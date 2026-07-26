@@ -34,6 +34,68 @@ export interface Subscription {
   subscribedAt: string
 }
 
+// ─── Playlists ────────────────────────────────────────────────────────────────
+
+/**
+ * A video stored in a playlist.
+ *
+ * Deliberately self-contained rather than a reference: a personal playlist must
+ * keep working when a video is pulled from YouTube, and a subscribed snapshot
+ * must render without a network round trip.
+ */
+export interface PlaylistVideo {
+  videoId: string
+  title: string
+  channelId: string
+  channelName: string
+  thumbnail: string
+  duration: number
+  viewCountText?: string
+  publishedText?: string
+}
+
+/**
+ * A playlist the user created. Videos can be added, removed, and reordered —
+ * `videos` order is the playlist order.
+ */
+export interface PersonalPlaylist {
+  _id: string
+  _rev?: string
+  type: 'playlist'
+  playlistId: string
+  title: string
+  description?: string
+  videos: PlaylistVideo[]
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * A YouTube playlist the user follows. Read-only: the contents belong to its
+ * author, so the local copy is a snapshot refreshed on demand.
+ */
+export interface SubscribedPlaylist {
+  _id: string
+  _rev?: string
+  type: 'playlist-sub'
+  playlistId: string
+  title: string
+  author: string
+  authorId?: string
+  thumbnail: string
+  description?: string
+  videos: PlaylistVideo[]
+  subscribedAt: string
+  /** When the snapshot was last pulled, so staleness can be surfaced. */
+  fetchedAt: string
+}
+
+export type AnyPlaylist = PersonalPlaylist | SubscribedPlaylist
+
+export function isPersonalPlaylist(p: AnyPlaylist): p is PersonalPlaylist {
+  return p.type === 'playlist'
+}
+
 export interface WatchHistoryEntry {
   _id: string
   _rev?: string

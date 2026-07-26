@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { pluginManager } from '../../plugins/manager'
 import type { ChannelInfo, SearchResult, ChannelPlaylist, FeaturedChannel } from '../../plugins/types'
 import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWatchedVideoIds } from '../../db/index'
 import { downloadAvatar } from '../../utils/avatar'
 import { getOrFetchChannelVideos } from '../../services/videoCache'
 import { getChannelInfoCached } from '../../services/metadata'
+import {
+  isPlaylistSubscribed, subscribeToPlaylist, unsubscribeFromPlaylist,
+} from '../../db/playlists'
 import PageLayout from '../../components/PageLayout'
 import VideoCard from '../../components/VideoCard'
 import ChannelCard from '../../components/ChannelCard'
@@ -28,6 +31,87 @@ const SORT_OPTIONS: ReadonlyArray<{ value: SortMode; label: string }> = [
   { value: 'Oldest', label: 'Oldest' },
   { value: 'Popular', label: 'Most popular' },
 ]
+
+/**
+ * A playlist tile on a channel page. Subscribing snapshots the playlist's
+ * contents locally, so it needs to fetch them before storing.
+ */
+function ChannelPlaylistCard({ playlist, channelName, channelId }: {
+  playlist: ChannelPlaylist
+  channelName: string
+  channelId: string
+}) {
+  const [subscribed, setSubscribed] = useState<boolean | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    isPlaylistSubscribed(playlist.playlistId)
+      .then(v => { if (!cancelled) setSubscribed(v) })
+      .catch(() => { if (!cancelled) setSubscribed(false) })
+    return () => { cancelled = true }
+  }, [playlist.playlistId])
+
+  async function toggle() {
+    if (subscribed === null || busy) return
+    setBusy(true)
+    try {
+      if (subscribed) {
+        await unsubscribeFromPlaylist(playlist.playlistId)
+        setSubscribed(false)
+        return
+      }
+      const plugin = pluginManager.getActive()
+      // Snapshot the contents; without them the stored playlist would be empty.
+      const detail = await plugin.getPlaylist?.(playlist.playlistId)
+      await subscribeToPlaylist({
+        playlistId: playlist.playlistId,
+        title: detail?.title || playlist.title,
+        author: detail?.author || channelName,
+        authorId: detail?.authorId || channelId,
+        thumbnail: playlist.thumbnail,
+        description: detail?.description,
+        videos: (detail?.videos ?? []).map(v => ({
+          videoId: v.videoId,
+          title: v.title,
+          channelId: v.channelId,
+          channelName: v.channelName,
+          thumbnail: v.thumbnail,
+          duration: v.duration,
+          viewCountText: v.viewCountText,
+          publishedText: v.publishedText,
+        })),
+      })
+      setSubscribed(true)
+    } catch {
+      // Leave the button as it was rather than claiming success.
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <li className="video-card">
+      <Link to={`/playlist/yt/${playlist.playlistId}`} className="video-card-thumb-link">
+        <VideoThumbnail src={playlist.thumbnail} />
+      </Link>
+      <Link to={`/playlist/yt/${playlist.playlistId}`} className="video-card-title">
+        {playlist.title}
+      </Link>
+      {playlist.videoCount !== undefined && (
+        <p className="video-card-meta">{playlist.videoCount} videos</p>
+      )}
+      <Button
+        size="sm"
+        className={`playlist-sub-btn${subscribed ? ' subscribed' : ''}`}
+        onClick={toggle}
+        disabled={subscribed === null || busy}
+      >
+        {busy ? '…' : subscribed ? 'Subscribed' : 'Subscribe'}
+      </Button>
+    </li>
+  )
+}
 
 /** Channel details panel — joined date, totals, location, tags. */
 function ChannelDetails({ info }: { info: ChannelInfo }) {
@@ -391,13 +475,12 @@ export default function Channel() {
             : (
               <ul className="video-grid">
                 {playlists.map(p => (
-                  <li key={p.playlistId} className="video-card">
-                    <VideoThumbnail src={p.thumbnail} />
-                    <p className="video-card-title">{p.title}</p>
-                    {p.videoCount !== undefined && (
-                      <p className="video-card-meta">{p.videoCount} videos</p>
-                    )}
-                  </li>
+                  <ChannelPlaylistCard
+                    key={p.playlistId}
+                    playlist={p}
+                    channelName={info.name}
+                    channelId={info.channelId}
+                  />
                 ))}
               </ul>
             )

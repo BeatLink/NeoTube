@@ -185,3 +185,11 @@
   opacity: 0.5;
   cursor: default;
 }
+
+.playlist-sub-btn { margin-top: 8px; }
+
+.playlist-sub-btn.subscribed {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}

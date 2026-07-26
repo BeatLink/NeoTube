@@ -83,6 +83,20 @@ export interface ChannelSearchResult {
   description?: string
 }
 
+/** A playlist and its contents. */
+export interface PlaylistDetail {
+  playlistId: string
+  title: string
+  description?: string
+  author: string
+  authorId?: string
+  thumbnail: string
+  /** Pre-formatted by YouTube, e.g. "27 videos" / "722,549 views". */
+  totalItemsText?: string
+  viewsText?: string
+  videos: SearchResult[]
+}
+
 export interface ChannelPlaylist {
   playlistId: string
   title: string
@@ -122,6 +136,8 @@ export interface VideoPlugin {
   getChannelPlaylists?(channelId: string, limit?: number): Promise<ChannelPlaylist[]>
   /** Searches within one channel's full catalogue, not just loaded videos. */
   searchChannelVideos?(channelId: string, query: string, limit?: number): Promise<SearchResult[]>
+  /** Fetches a playlist and its videos. */
+  getPlaylist?(playlistId: string, limit?: number): Promise<PlaylistDetail>
   /** Channels this channel features on its home tab. */
   getFeaturedChannels?(channelId: string, limit?: number): Promise<FeaturedChannel[]>
   /**

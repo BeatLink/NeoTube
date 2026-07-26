@@ -72,6 +72,7 @@ export default function Layout() {
         <div className="sidebar-nav">
           <NavLink to="/subscriptions">Subscriptions</NavLink>
           <NavLink to="/channels">Channels</NavLink>
+          <NavLink to="/playlists">Playlists</NavLink>
           <NavLink to="/history">History</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </div>

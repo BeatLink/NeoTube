@@ -1,6 +1,6 @@
 import * as innertube from './innertube'
 import type { ChannelSort } from './innertube'
-import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, ChannelPlaylist, FeaturedChannel, ChannelSearchResult, StreamUrl } from '../types'
+import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, ChannelPlaylist, PlaylistDetail, FeaturedChannel, ChannelSearchResult, StreamUrl } from '../types'
 
 interface YtjsRawFormat {
   url?: string
@@ -175,6 +175,30 @@ export class YoutubeJsPlugin implements VideoPlugin {
       name: c.name,
       avatar: c.avatar,
     }))
+  }
+
+  async getPlaylist(playlistId: string, limit?: number): Promise<PlaylistDetail> {
+    const raw = await innertube.getPlaylist(playlistId, limit)
+    return {
+      playlistId: raw.playlist_id,
+      title: raw.title,
+      description: raw.description,
+      author: raw.author,
+      authorId: raw.author_id,
+      thumbnail: raw.thumbnail,
+      totalItemsText: raw.total_items_text,
+      viewsText: raw.views_text,
+      videos: raw.videos.map(v => ({
+        videoId: v.video_id,
+        title: v.title,
+        channelId: '',
+        channelName: raw.author,
+        thumbnail: v.thumbnail,
+        duration: v.duration,
+        viewCountText: v.view_count_text,
+        publishedText: v.published_text,
+      })),
+    }
   }
 
   async getChannelPlaylists(channelId: string, limit = 20): Promise<ChannelPlaylist[]> {

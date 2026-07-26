@@ -9,6 +9,8 @@ import Subscriptions from './pages/Subscriptions'
 import Channels from './pages/Channels'
 import History from './pages/History'
 import Settings from './pages/Settings'
+import Playlists from './pages/Playlists'
+import Playlist from './pages/Playlist'
 import { getSettings } from './db'
 import type { StartupPage } from './types'
 import { setCookie as ytjsSetCookie } from './plugins/youtubejs/innertube'
@@ -43,6 +45,11 @@ export default function App() {
             <Route path="channel/:channelId" element={<Channel />} />
             <Route path="subscriptions" element={<Subscriptions />} />
             <Route path="channels" element={<Channels />} />
+            <Route path="playlists" element={<Playlists />} />
+            {/* Two shapes: personal lists live locally, `yt/` ones are
+                snapshots of YouTube playlists. */}
+            <Route path="playlist/yt/:playlistId" element={<Playlist subscribed />} />
+            <Route path="playlist/:playlistId" element={<Playlist />} />
             <Route path="history" element={<History />} />
             <Route path="settings" element={<Settings />} />
           </Route>

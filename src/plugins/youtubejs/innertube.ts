@@ -382,6 +382,42 @@ function parseDurationText(text?: string): number {
   return parts.reduce((total, part) => total * 60 + part, 0)
 }
 
+/**
+ * Fetches a playlist and its videos, following continuations.
+ *
+ * Items come back in the same `LockupView` shape as the channel grid, so
+ * `parseChannelVideos` handles them.
+ */
+export async function getPlaylist(playlistId: string, limit = Infinity) {
+  const yt = await getClient()
+  const playlist = await yt.getPlaylist(playlistId) as any
+
+  const videos = parseChannelVideos(playlist?.videos ?? playlist?.items ?? [])
+  let feed = playlist
+  let pages = 1
+  while (videos.length < limit && feed?.has_continuation && pages < MAX_CHANNEL_PAGES) {
+    try { feed = await feed.getContinuation() } catch { break }
+    pages++
+    const page = parseChannelVideos(feed?.videos ?? feed?.items ?? [])
+    if (!page.length) break
+    videos.push(...page)
+  }
+
+  const info = playlist?.info ?? {}
+  const thumbs: Array<{ url: string; width?: number }> = info?.thumbnails ?? []
+  return {
+    playlist_id: playlistId,
+    title: (info?.title ?? '') as string,
+    description: (info?.description ?? '') as string,
+    author: (info?.author?.name ?? '') as string,
+    author_id: (info?.author?.id ?? '') as string,
+    thumbnail: thumbs.length > 0 ? thumbs[0].url : '',
+    total_items_text: (info?.total_items ?? '') as string,
+    views_text: (info?.views ?? '') as string,
+    videos: videos.slice(0, limit === Infinity ? undefined : limit),
+  }
+}
+
 export async function getChannelPlaylists(channelId: string, limit: number) {
   const yt = await getClient()
   const channel = await yt.getChannel(channelId) as any
