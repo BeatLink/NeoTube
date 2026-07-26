@@ -19,6 +19,8 @@ tauri = { version = "2", features = [] }
 # `unsafe-headers` lets Innertube send Cookie/Referer. The fetch spec marks them
 # forbidden, so the plugin strips them by default and YouTube answers 403.
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
+# Opens YouTube links in the user's real browser (video card menu).
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "5"

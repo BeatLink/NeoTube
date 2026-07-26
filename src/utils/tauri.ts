@@ -47,6 +47,19 @@ export async function tauriFetch(
   })
 }
 
+/**
+ * Opens a URL in the user's default browser. Falls back to a new tab when
+ * running outside Tauri.
+ */
+export async function openInBrowser(url: string): Promise<void> {
+  if (!isTauri()) {
+    window.open(url, '_blank', 'noopener,noreferrer')
+    return
+  }
+  const { openUrl } = await import('@tauri-apps/plugin-opener')
+  await openUrl(url)
+}
+
 export interface FreetubeData {
   subscriptions: Array<{ id: string; name: string; thumbnail: string }>
   history: Array<{

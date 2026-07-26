@@ -41,12 +41,6 @@
 
 .channel-sub-btn.subscribed:hover { color: var(--text); opacity: 1; }
 
-.channel-description {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 16px;
-}
-
 .channel-description p {
   font-size: 0.875rem;
   white-space: pre-wrap;

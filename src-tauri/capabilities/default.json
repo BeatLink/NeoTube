@@ -6,6 +6,10 @@
   "permissions": [
     "core:default",
     {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://www.youtube.com/*" }]
+    },
+    {
       "identifier": "http:default",
       "allow": [
         { "url": "https://www.youtube.com/*" },
