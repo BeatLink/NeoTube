@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { pluginManager } from '../../plugins/manager'
-import type { ChannelInfo, SearchResult, ChannelPlaylist } from '../../plugins/types'
+import type { ChannelInfo, SearchResult, ChannelPlaylist, FeaturedChannel } from '../../plugins/types'
 import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWatchedVideoIds } from '../../db/index'
 import { downloadAvatar } from '../../utils/avatar'
 import { getOrFetchChannelVideos } from '../../services/videoCache'
@@ -13,7 +13,7 @@ import ToggleButton from '../../components/ToggleButton'
 import Button from '../../components/Button'
 import './Channel.css'
 
-type Tab = 'videos' | 'playlists'
+type Tab = 'videos' | 'playlists' | 'channels'
 
 const PAGE_SIZE = 24
 
@@ -67,9 +67,11 @@ export default function Channel() {
   const [info, setInfo] = useState<ChannelInfo | null>(null)
   const [videos, setVideos] = useState<SearchResult[] | null>(null)
   const [playlists, setPlaylists] = useState<ChannelPlaylist[] | null>(null)
+  const [featured, setFeatured] = useState<FeaturedChannel[] | null>(null)
   const [tab, setTab] = useState<Tab>('videos')
   const [loadingInfo, setLoadingInfo] = useState(true)
   const [loadingPlaylists, setLoadingPlaylists] = useState(false)
+  const [loadingFeatured, setLoadingFeatured] = useState(false)
   const [error, setError] = useState('')
   const [subscribed, setSubscribed] = useState(false)
   const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
@@ -106,6 +108,7 @@ export default function Channel() {
     setLoadingInfo(true)
     setInfo(null)
     setPlaylists(null)
+    setFeatured(null)
     setTab('videos')
     setError('')
     setSortMode('Latest')
@@ -161,6 +164,18 @@ export default function Channel() {
       .then(p => { setPlaylists(p); setLoadingPlaylists(false) })
       .catch(() => { setPlaylists([]); setLoadingPlaylists(false) })
   }, [tab, channelId, playlists])
+
+  useEffect(() => {
+    if (tab !== 'channels' || featured !== null || !channelId) return
+    const plugin = pluginManager.getActive()
+    if (!plugin.getFeaturedChannels) { setFeatured([]); return }
+
+    setLoadingFeatured(true)
+    plugin
+      .getFeaturedChannels(channelId)
+      .then(c => { setFeatured(c); setLoadingFeatured(false) })
+      .catch(() => { setFeatured([]); setLoadingFeatured(false) })
+  }, [tab, channelId, featured])
 
   // Reveal another chunk of the grid when the sentinel scrolls into view.
   useEffect(() => {
@@ -233,6 +248,12 @@ export default function Channel() {
             onClick={() => setTab('playlists')}
           >
             Playlists
+          </button>
+          <button
+            className={`channel-tab${tab === 'channels' ? ' active' : ''}`}
+            onClick={() => setTab('channels')}
+          >
+            Channels
           </button>
           {tab === 'videos' && (
             <>
@@ -313,6 +334,30 @@ export default function Channel() {
                     {p.videoCount !== undefined && (
                       <p className="video-card-meta">{p.videoCount} videos</p>
                     )}
+                  </li>
+                ))}
+              </ul>
+            )
+      )}
+
+      {tab === 'channels' && (
+        loadingFeatured
+          ? <p className="channel-tab-status">Loading channels…</p>
+          : !featured || featured.length === 0
+            ? <p className="channel-tab-status">This channel doesn't feature any others.</p>
+            : (
+              <ul className="featured-grid">
+                {featured.map(c => (
+                  <li key={c.channelId} className="featured-card">
+                    <Link to={`/channel/${c.channelId}`} className="featured-link">
+                      {c.avatar
+                        ? <img className="featured-avatar" src={c.avatar} alt="" loading="lazy" />
+                        : <div className="featured-avatar featured-avatar-initial">
+                            {c.name.charAt(0).toUpperCase()}
+                          </div>
+                      }
+                      <span className="featured-name">{c.name}</span>
+                    </Link>
                   </li>
                 ))}
               </ul>
