@@ -17,6 +17,22 @@ export default function Watch() {
   const { videoId } = useParams<{ videoId: string }>()
   const [state, setState] = useState<State>({ status: 'loading' })
   const [subscribed, setSubscribed] = useState(false)
+  // Fetched alongside the video info so the page renders without waiting on it.
+  // null means adaptive playback is unavailable and the player uses `streams`.
+  const [manifest, setManifest] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!videoId) return
+    setManifest(null)
+    let cancelled = false
+
+    const plugin = pluginManager.getActive()
+    plugin.getDashManifest?.(videoId)
+      .then(mpd => { if (!cancelled) setManifest(mpd) })
+      .catch(() => { /* fall back to progressive streams */ })
+
+    return () => { cancelled = true }
+  }, [videoId])
 
   useEffect(() => {
     if (!videoId) return
@@ -73,7 +89,7 @@ export default function Watch() {
 
   return (
     <div className="watch-page">
-      <VideoPlayer streams={info.streams} title={info.title} />
+      <VideoPlayer streams={info.streams} manifest={manifest} title={info.title} />
       <div className="watch-meta">
         <h1 className="watch-title">{info.title}</h1>
         <div className="watch-channel-row">

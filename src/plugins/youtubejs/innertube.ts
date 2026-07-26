@@ -30,9 +30,33 @@ export async function setCookie(cookie: string): Promise<void> {
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
+// YouTube only muxes video+audio up to 360p; everything above is adaptive
+// (separate video-only and audio-only streams). To play those we hand a DASH
+// manifest to dash.js.
+//
+// The IOS client is used because it returns unciphered stream URLs. WEB/ANDROID
+// require running YouTube's player script to decipher signatures, which needs a
+// JS evaluator we don't ship, and TV fails outright with the same error.
+const STREAM_CLIENT = 'IOS'
+
+/**
+ * Builds a DASH manifest with segment URLs rewritten through the `ytstream://`
+ * proxy (see `src-tauri/src/stream.rs`). Returns null in the browser, where the
+ * proxy does not exist and adaptive playback is not possible.
+ */
+export async function getDashManifest(videoId: string): Promise<string | null> {
+  if (!isTauri()) return null
+  const yt = await getClient()
+  const info = await yt.getInfo(videoId, { client: STREAM_CLIENT })
+  return info.toDash({
+    url_transformer: (url: URL) =>
+      new URL(`ytstream://localhost/?url=${encodeURIComponent(url.toString())}`),
+  })
+}
+
 export async function getInfo(videoId: string) {
   const yt = await getClient()
-  const info = await yt.getInfo(videoId, { client: 'ANDROID' })
+  const info = await yt.getInfo(videoId, { client: STREAM_CLIENT })
   const b = info.basic_info
   const allFormats = [
     ...(info.streaming_data?.formats ?? []),

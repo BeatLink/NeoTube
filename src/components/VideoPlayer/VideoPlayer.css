@@ -1,16 +1,118 @@
 .video-player {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .video-element {
   width: 100%;
   max-height: 70vh;
   background: #000;
-  border-radius: 8px;
+  display: block;
 }
 
+
+/* ── Overlay controls ──────────────────────────────────────────────────────
+   Sit on top of the video in the corner opposite the native control bar, so
+   they never overlap it. Hidden until the player is hovered or focused. */
+
+.player-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.65);
+  border-radius: 8px;
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.video-player:hover .player-controls,
+.player-controls:focus-within {
+  opacity: 1;
+}
+
+.quality-label {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.quality-select {
+  padding: 4px 24px 4px 8px;
+  background-color: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+
+  /* Native arrow varies across platforms; draw our own for a consistent look. */
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23fff' d='M0 0h10L5 6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.quality-select:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.quality-select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The dropdown list itself is rendered by the OS and does not inherit the
+   translucent styling above, so give it readable standalone colours. */
+.quality-select option {
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.fullscreen-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.fullscreen-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+/* ── Fullscreen ────────────────────────────────────────────────────────────
+   The container is fullscreened rather than the <video>, so the overlay
+   controls stay visible. */
+
+.video-player-fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+}
+
+.video-player-fullscreen .video-element {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
 
 .player-error {
   color: var(--accent);

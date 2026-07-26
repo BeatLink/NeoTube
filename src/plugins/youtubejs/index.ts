@@ -62,6 +62,10 @@ export class YoutubeJsPlugin implements VideoPlugin {
     }
   }
 
+  async getDashManifest(videoId: string): Promise<string | null> {
+    return innertube.getDashManifest(videoId)
+  }
+
   async search(query: string, limit = 10): Promise<SearchResult[]> {
     const results = await innertube.search(query, limit)
     return results.map(v => ({
