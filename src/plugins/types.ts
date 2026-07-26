@@ -62,6 +62,13 @@ export interface ChannelInfo {
   tags?: string[]
 }
 
+/** A channel featured by another channel. */
+export interface FeaturedChannel {
+  channelId: string
+  name: string
+  avatar: string
+}
+
 export interface ChannelPlaylist {
   playlistId: string
   title: string
@@ -94,8 +101,11 @@ export interface VideoPlugin {
     channelId: string,
     limit?: number,
     onPage?: (videos: SearchResult[]) => void,
+    sort?: 'Latest' | 'Popular' | 'Oldest',
   ): Promise<SearchResult[]>
   getChannelPlaylists?(channelId: string, limit?: number): Promise<ChannelPlaylist[]>
+  /** Channels this channel features on its home tab. */
+  getFeaturedChannels?(channelId: string, limit?: number): Promise<FeaturedChannel[]>
   /**
    * Returns a DASH manifest for adaptive playback above 360p, or null when the
    * environment can't support it. Optional — backends without adaptive streams

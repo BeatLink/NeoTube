@@ -24,7 +24,23 @@ export const METADATA_TTL_MS: Record<MetadataKind, number> = {
 /** Give up on an entry after this many consecutive failures. */
 export const MAX_FAILURES = 5
 
-export function isFresh(doc: Pick<MetadataCache, 'fetchedAt'>, ttlMs: number): boolean {
+/**
+ * Shape version of cached payloads. Bump this whenever a cached type gains or
+ * changes fields — entries written by an older version are treated as stale, so
+ * new fields get populated instead of serving documents that silently lack them.
+ *
+ * 2: ChannelInfo gained banner, joined/views/video-count text, country, tags,
+ *    and the full description from getAbout().
+ */
+export const METADATA_VERSION = 2
+
+export function isFresh(
+  doc: Pick<MetadataCache, 'fetchedAt' | 'version'>,
+  ttlMs: number,
+): boolean {
+  // A payload written before the current shape is missing fields the UI now
+  // expects, so it must be refetched regardless of age.
+  if ((doc.version ?? 1) !== METADATA_VERSION) return false
   const fetchedAt = Date.parse(doc.fetchedAt)
   if (!Number.isFinite(fetchedAt)) return false
   const age = Date.now() - fetchedAt
@@ -61,6 +77,7 @@ export async function setMetadata<T>(
     refId,
     data,
     fetchedAt: new Date().toISOString(),
+    version: METADATA_VERSION,
     // A success clears any prior failure streak.
     failedAt: undefined,
     failures: 0,

@@ -214,15 +214,30 @@ const MAX_CHANNEL_PAGES = 100
  *
  * Pass `Infinity` for every video the channel has.
  */
+/**
+ * Order to request from YouTube. Sorting server-side matters because the only
+ * date we get back is a humanized label ("8 years ago"): dozens of videos share
+ * one, so sorting locally cannot separate them. YouTube orders by the real
+ * timestamp.
+ */
+export type ChannelSort = 'Latest' | 'Popular' | 'Oldest'
+
 export async function getChannelVideos(
   channelId: string,
   limit: number,
   onPage?: (videos: RawChannelVideo[], total: number) => void,
+  sort: ChannelSort = 'Latest',
 ) {
   const yt = await getClient()
   const channel = await yt.getChannel(channelId) as any
   let feed: any
   try { feed = await channel.getVideos() } catch { return [] }
+
+  // The chip bar lives on the videos tab. 'Latest' is the default, so only the
+  // other orders need a request; a failure falls back to the default order.
+  if (sort !== 'Latest') {
+    try { feed = await feed.applyFilter(sort) } catch { /* keep default order */ }
+  }
 
   const collected = parseChannelVideos(feed?.videos ?? feed?.items ?? feed?.contents ?? [])
   onPage?.(collected.slice(0, limit), collected.length)
@@ -242,6 +257,52 @@ export async function getChannelVideos(
   }
 
   return collected.slice(0, limit)
+}
+
+/**
+ * Channels featured by this channel.
+ *
+ * YouTube retired the dedicated "Channels" tab; featured channels now appear as
+ * a `GridChannel` shelf on the Home tab, so we scan the shelves for one.
+ */
+export async function getFeaturedChannels(channelId: string, limit: number) {
+  const yt = await getClient()
+  const channel = await yt.getChannel(channelId) as any
+  if (!channel?.has_home) return []
+
+  let home: any
+  try { home = await channel.getHome() } catch { return [] }
+
+  const shelves: any[] = home?.shelves ?? home?.contents ?? home?.items ?? []
+  const featured: Array<{ channel_id: string; name: string; avatar: string }> = []
+  const seen = new Set<string>()
+
+  for (const shelf of shelves) {
+    const items: any[] = shelf?.content?.items ?? shelf?.items ?? shelf?.contents ?? []
+    for (const item of items) {
+      const node = item?.content ?? item
+      if (String(node?.type) !== 'GridChannel') continue
+
+      const author = node.author ?? {}
+      const id: string = node.id ?? author.id ?? ''
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+
+      const thumbs: Array<{ url: string; width?: number }> = author.thumbnails ?? []
+      const best = thumbs.length
+        ? [...thumbs].sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0].url
+        : ''
+
+      featured.push({
+        channel_id: id,
+        name: author.name ?? '',
+        // These come back protocol-relative ("//yt3...").
+        avatar: best.startsWith('//') ? `https:${best}` : best,
+      })
+      if (featured.length >= limit) return featured
+    }
+  }
+  return featured
 }
 
 export async function getChannelPlaylists(channelId: string, limit: number) {

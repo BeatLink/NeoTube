@@ -6,7 +6,6 @@ import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWat
 import { downloadAvatar } from '../../utils/avatar'
 import { getOrFetchChannelVideos } from '../../services/videoCache'
 import { getChannelInfoCached } from '../../services/metadata'
-import { parseRelativeAge, parseViewCount } from '../../utils/format'
 import PageLayout from '../../components/PageLayout'
 import VideoCard from '../../components/VideoCard'
 import VideoThumbnail from '../../components/VideoThumbnail'
@@ -18,41 +17,16 @@ type Tab = 'videos' | 'playlists'
 
 const PAGE_SIZE = 24
 
-type SortMode = 'newest' | 'oldest' | 'popular'
+// These are YouTube's own filter-chip names. Sorting happens server-side
+// because the only date we receive is a humanized label ("8 years ago"), which
+// dozens of videos share — local sorting cannot order them correctly.
+type SortMode = 'Latest' | 'Popular' | 'Oldest'
 
 const SORT_OPTIONS: ReadonlyArray<{ value: SortMode; label: string }> = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'oldest', label: 'Oldest' },
-  { value: 'popular', label: 'Most popular' },
+  { value: 'Latest', label: 'Newest' },
+  { value: 'Oldest', label: 'Oldest' },
+  { value: 'Popular', label: 'Most popular' },
 ]
-
-/**
- * Sorts by the values parsed out of YouTube's display text.
- *
- * `parseRelativeAge` returns age in ms, so smaller is newer. Videos YouTube
- * gives no date or view count for sort last in every mode rather than jumping
- * to the front.
- */
-function sortVideos(videos: SearchResult[], mode: SortMode): SearchResult[] {
-  const sorted = [...videos]
-  switch (mode) {
-    case 'newest':
-      return sorted.sort((a, b) =>
-        parseRelativeAge(a.publishedText) - parseRelativeAge(b.publishedText))
-    case 'oldest':
-      return sorted.sort((a, b) => {
-        const ageA = parseRelativeAge(a.publishedText)
-        const ageB = parseRelativeAge(b.publishedText)
-        // Unknown dates (Infinity) stay at the end instead of leading.
-        if (ageA === Infinity) return 1
-        if (ageB === Infinity) return -1
-        return ageB - ageA
-      })
-    case 'popular':
-      return sorted.sort((a, b) =>
-        parseViewCount(b.viewCountText) - parseViewCount(a.viewCountText))
-  }
-}
 
 /** Channel details panel — joined date, totals, location, tags. */
 function ChannelDetails({ info }: { info: ChannelInfo }) {
@@ -102,7 +76,7 @@ export default function Channel() {
   const [watchedStyle, setWatchedStyle] = useState<'normal' | 'dim' | 'hide'>('normal')
   const [hideWatched, setHideWatched] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
-  const [sortMode, setSortMode] = useState<SortMode>('newest')
+  const [sortMode, setSortMode] = useState<SortMode>('Latest')
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -126,26 +100,17 @@ export default function Channel() {
     return () => window.removeEventListener('history-changed', refresh)
   }, [])
 
+  // Channel identity — only refetched when navigating to a different channel.
   useEffect(() => {
     if (!channelId) return
     setLoadingInfo(true)
     setInfo(null)
-    setVideos(null)
     setPlaylists(null)
     setTab('videos')
     setError('')
-    setVisibleCount(PAGE_SIZE)
+    setSortMode('Latest')
 
     let cancelled = false
-
-    // Infinity → follow continuations until the channel is exhausted. YouTube
-    // returns 30 per page, which used to be the hard cap on what was shown.
-    getOrFetchChannelVideos(channelId, fresh => {
-      if (!cancelled) setVideos(fresh as SearchResult[])
-    }, Infinity).then(cached => {
-      if (cached && !cancelled) setVideos(cached as SearchResult[])
-    }).catch(() => {})
-
     getChannelInfoCached(channelId)
       .then(channelInfo => {
         if (cancelled) return
@@ -165,6 +130,25 @@ export default function Channel() {
 
     return () => { cancelled = true }
   }, [channelId])
+
+  // Video list — refetched per sort. Kept separate from the identity effect so
+  // switching sort doesn't blank the whole page while it reloads.
+  useEffect(() => {
+    if (!channelId) return
+    setVideos(null)
+    setVisibleCount(PAGE_SIZE)
+
+    let cancelled = false
+    // Infinity → follow continuations until the channel is exhausted. YouTube
+    // returns 30 per page, which used to be the hard cap on what was shown.
+    getOrFetchChannelVideos(channelId, fresh => {
+      if (!cancelled) setVideos(fresh as SearchResult[])
+    }, Infinity, sortMode).then(cached => {
+      if (cached && !cancelled) setVideos(cached as SearchResult[])
+    }).catch(() => {})
+
+    return () => { cancelled = true }
+  }, [channelId, sortMode])
 
   useEffect(() => {
     if (tab !== 'playlists' || playlists !== null || !channelId) return
@@ -284,10 +268,10 @@ export default function Channel() {
           : videos.length === 0
             ? <p className="channel-tab-status">No videos found.</p>
             : (() => {
-                const filtered = shouldHide
+                // Already ordered by YouTube; only watched-filtering remains.
+                const visibleVideos = shouldHide
                   ? videos.filter(v => !watchedIds.has(v.videoId))
                   : videos
-                const visibleVideos = sortVideos(filtered, sortMode)
                 // A channel can return hundreds of videos; render them in
                 // chunks so the grid stays responsive.
                 const shown = visibleVideos.slice(0, visibleCount)

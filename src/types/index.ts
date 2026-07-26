@@ -91,6 +91,8 @@ export interface MetadataCache<T = unknown> {
   refId: string
   data: T
   fetchedAt: string
+  /** Shape version this was written with; see METADATA_VERSION. */
+  version?: number
   failedAt?: string
   failures?: number
 }

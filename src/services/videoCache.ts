@@ -24,10 +24,21 @@ function toCachedVideos(
   }))
 }
 
+export type ChannelSort = 'Latest' | 'Popular' | 'Oldest'
+
+/**
+ * Each ordering is cached separately: YouTube returns a different page of
+ * videos per sort, so they must not overwrite one another.
+ */
+function cacheKey(channelId: string, sort: ChannelSort): string {
+  return sort === 'Latest' ? channelId : `${channelId}::${sort}`
+}
+
 async function fetchAndPersist(
   channelId: string,
   limit?: number,
   onFresh?: (videos: CachedVideo[]) => void,
+  sort: ChannelSort = 'Latest',
 ): Promise<CachedVideo[]> {
   const plugin = pluginManager.getActive()
   const fresh = await (
@@ -37,10 +48,11 @@ async function fetchAndPersist(
       // Fetching a whole channel takes several round trips, so surface each
       // page as it lands rather than leaving the grid empty until the end.
       onFresh ? page => onFresh(toCachedVideos(page, channelId)) : undefined,
+      sort,
     ) ?? Promise.resolve([])
   )
   const videos = toCachedVideos(fresh, channelId)
-  await setCachedChannelVideos(channelId, videos)
+  await setCachedChannelVideos(cacheKey(channelId, sort), videos)
   onFresh?.(videos)
   return videos
 }
@@ -54,9 +66,10 @@ export async function getOrFetchChannelVideos(
   channelId: string,
   onFresh?: (videos: CachedVideo[]) => void,
   limit?: number,
+  sort: ChannelSort = 'Latest',
 ): Promise<CachedVideo[] | null> {
-  const cached = await getCachedChannelVideos(channelId).catch(() => null)
-  fetchAndPersist(channelId, limit, onFresh).catch(() => {})
+  const cached = await getCachedChannelVideos(cacheKey(channelId, sort)).catch(() => null)
+  fetchAndPersist(channelId, limit, onFresh, sort).catch(() => {})
   return cached
 }
 

@@ -11,7 +11,7 @@ vi.mock('../src/db/client', () => ({ db: () => db }))
 const {
   getMetadata, setMetadata, getOrFetchMetadata, getStaleMetadata,
   getUncachedIds, recordMetadataFailure, getMetadataStats, isFresh,
-  MAX_FAILURES, METADATA_TTL_MS,
+  MAX_FAILURES, METADATA_TTL_MS, METADATA_VERSION,
 } = await import('../src/db/metadata')
 
 async function reset() {
@@ -26,21 +26,36 @@ async function ageEntry(kind: string, refId: string, ms: number) {
 }
 
 describe('isFresh', () => {
+  const current = (fetchedAt: string) => ({ fetchedAt, version: METADATA_VERSION })
+
   it('accepts a recent timestamp', () => {
-    expect(isFresh({ fetchedAt: new Date().toISOString() }, 60_000)).toBe(true)
+    expect(isFresh(current(new Date().toISOString()), 60_000)).toBe(true)
   })
 
   it('rejects one older than the TTL', () => {
-    expect(isFresh({ fetchedAt: new Date(Date.now() - 120_000).toISOString() }, 60_000)).toBe(false)
+    expect(isFresh(current(new Date(Date.now() - 120_000).toISOString()), 60_000)).toBe(false)
   })
 
   it('rejects an unparseable timestamp', () => {
-    expect(isFresh({ fetchedAt: 'nonsense' }, 60_000)).toBe(false)
+    expect(isFresh(current('nonsense'), 60_000)).toBe(false)
   })
 
   // A clock change could otherwise leave an entry permanently "fresh".
   it('rejects a future timestamp', () => {
-    expect(isFresh({ fetchedAt: new Date(Date.now() + 600_000).toISOString() }, 60_000)).toBe(false)
+    expect(isFresh(current(new Date(Date.now() + 600_000).toISOString()), 60_000)).toBe(false)
+  })
+
+  // Without this, a cached payload written before a type gained fields would be
+  // served forever, silently missing them.
+  it('rejects a payload written by an older shape version', () => {
+    const recent = new Date().toISOString()
+    expect(isFresh({ fetchedAt: recent, version: METADATA_VERSION - 1 }, 60_000)).toBe(false)
+    expect(isFresh({ fetchedAt: recent, version: METADATA_VERSION }, 60_000)).toBe(true)
+  })
+
+  // Entries predate the version field entirely.
+  it('treats a versionless entry as outdated', () => {
+    expect(isFresh({ fetchedAt: new Date().toISOString() }, 60_000)).toBe(false)
   })
 })
 

@@ -1,5 +1,6 @@
 import * as innertube from './innertube'
-import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, ChannelPlaylist, StreamUrl } from '../types'
+import type { ChannelSort } from './innertube'
+import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo, ChannelPlaylist, FeaturedChannel, StreamUrl } from '../types'
 
 interface YtjsRawFormat {
   url?: string
@@ -112,6 +113,7 @@ export class YoutubeJsPlugin implements VideoPlugin {
     channelId: string,
     limit = 30,
     onPage?: (videos: SearchResult[]) => void,
+    sort: ChannelSort = 'Latest',
   ): Promise<SearchResult[]> {
     const toResults = (
       items: Array<{ video_id: string; title: string; thumbnail: string; duration: number
@@ -134,8 +136,18 @@ export class YoutubeJsPlugin implements VideoPlugin {
       channelId,
       limit,
       onPage ? page => onPage(toResults(page)) : undefined,
+      sort,
     )
     return toResults(items)
+  }
+
+  async getFeaturedChannels(channelId: string, limit = 24): Promise<FeaturedChannel[]> {
+    const items = await innertube.getFeaturedChannels(channelId, limit)
+    return items.map(c => ({
+      channelId: c.channel_id,
+      name: c.name,
+      avatar: c.avatar,
+    }))
   }
 
   async getChannelPlaylists(channelId: string, limit = 20): Promise<ChannelPlaylist[]> {
